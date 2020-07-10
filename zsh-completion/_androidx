@@ -1,0 +1,85 @@
+#compdef androidx
+
+_commands=(
+    '-h:show androidx command line help.'
+    '--help:show androidx command line help.'
+    'help:show androidx command line help.'
+    '-V:show androidx version.'
+    '--version:show androidx version.'
+    'version:show androidx version.'
+    'build:build project to generate the apk.'
+    'show:show version of a apk file or keystore infomation.'
+)
+
+function _androidx_commands() {
+    _describe 'command' _commands
+}
+
+function _androidx_build() {
+    _arguments \
+        '--input-apk-file=[input apk file]:inputApkFile:{_files -g "*.apk"}' \
+        '--project-dir=[set the project dir]:projectDIR:_files -/'
+}
+
+function _androidx() {
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments \
+        '1: :_androidx_commands' \
+        '*:: :->option'
+    
+    case $state in
+        option)
+            case $words[1] in
+                 build)
+                    echo "$state = $state\nwords = $words" >> ~/.xx
+                    _arguments \
+                        '1: :_androidx_build' \
+                        '*:: :->other'
+                    case $state in
+                        other)
+                            case $words[1] in
+                                --input-apk-file=*|--project-dir=*)
+                                    _arguments \
+                                        '--environment=:environment:(debug release)' \
+                                        '--webp[convert images to webp]' \
+                                        '--resguard[guard the res]' \
+                                        '--redex[rebuild dex to optimize]' \
+                                        '--jiagu[jiagu with 360jiagubao]' \
+                                        '--output-dir=[set the output dir]:outputDIR:_files -/' \
+                                        '--app-name=[the app name, default is project-dir name]: :()' \
+                                        '--channels-gen[generate channels files]' \
+                                        '--channels-zip[zip channels files]' \
+                                        '--channels-config-file=[set the channels config file]:channels-config-file:_files' \
+                                        '--resguard-config-file=[set the resguard config file]:resguard-config-file:_files -g "*.xml"' \
+                                        '--keystore-file=[set the keystore file]:keystoreFile:_files' \
+                                        '--keystore-password=[set the password of the keystore file]: :()' \
+                                        '--keystore-key-alias=[set the key alias]: :()' \
+                                        '--keystore-key-password=[set the password of the key alias]: :()' \
+                                        '--install[install the final apk on connected device]' \
+                                        '(--verbose -v)'{--verbose,-v}'[verbose output log]'
+                                    ;;
+                            esac
+                            ;;
+                    esac      
+                    ;;
+                show)
+                    _arguments \
+                        ':show:(keystore version)' \
+                        '*:: :->show_option'
+                    case $words[1] in
+                        keystore)
+                            _arguments '--project-dir=-[set the project dir]:projectDIR:_files -/' ;;
+                        version)
+                            _arguments '--input-apk-file=[input apk file]:inputApkFile:{_files -g "*.apk"}' ;;
+                    esac
+                    ;;
+                *);;
+            esac
+            ;;
+        *);;
+    esac
+}
+
+_androidx "$@"
