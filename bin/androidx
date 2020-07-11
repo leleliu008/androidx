@@ -49,20 +49,12 @@ convert_unix_timestamp_to_format_string() {
    date -d      "@$1" "$2"
 }
 
-__read_my_config_file() {
-    USER_LEVEL_CONFIG_FILE="$HOME/.androidx"
-    [ -f "$USER_LEVEL_CONFIG_FILE" ] && . "$USER_LEVEL_CONFIG_FILE"
-
-    PROJECT_LEVEL_CONFIG_FILE="$PROJECT_DIR/.androidx"
-    [ -f "$PROJECT_LEVEL_CONFIG_FILE" ] && . "$PROJECT_LEVEL_CONFIG_FILE"
-}
-
 getvalue() {
     msg "$1" | awk -F= '{print $2}'
 }
 
 get_value_from_build_gradle() {
-    grep "$1" "$GRADLE_APP_MODULE_BUILD_FILE" | sed "$2"
+    grep "$1\s*=*\s*[\"|'].*[\"|']" "$GRADLE_APP_MODULE_BUILD_FILE" | sed "s@.*[\"|']\(.*\)[\"|'].*@\1@"
 }
 
 #xxx.apk 接上zipaligned变为xxx_zipaligned.apk
@@ -78,41 +70,24 @@ is_a_valid_apk_file() {
     unzip -t "$1" > /dev/null || error_exit "$1 is not a valid apk file."
 }
 
-read_keystore_info() {
-    [ -z "$KEY_STORE_FILE_PATH" ] && {
-        KEY_STORE_FILE_PATH=$(get_value_from_build_gradle 'storeFile = file("[^"]*"' 's/.*storeFile = file("\([^"]*\)".*/\1/')
-        KEY_STORE_FILE_PATH="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/$KEY_STORE_FILE_PATH"
-        
-        KEY_STORE_PASSWORD=$(get_value_from_build_gradle 'storePassword = "[^"]*"' 's/.*storePassword = "\([^"]*\)".*/\1/')
-        
-        KEY_STORE_KEY_ALIAS=$(get_value_from_build_gradle 'keyAlias = "[^"]*"' 's/.*keyAlias = "\([^"]*\)".*/\1/')
-        
-        KEY_STORE_KEY_PASSWORD=$(get_value_from_build_gradle 'keyPassword = "[^"]*"' 's/.*keyPassword = "\([^"]*\)".*/\1/')
-    }
+__read_my_config_file() {
+    USER_LEVEL_CONFIG_FILE="$HOME/.androidx"
+    [ -f "$USER_LEVEL_CONFIG_FILE" ] && . "$USER_LEVEL_CONFIG_FILE"
+
+    PROJECT_LEVEL_CONFIG_FILE="$PROJECT_DIR/.androidx"
+    [ -f "$PROJECT_LEVEL_CONFIG_FILE" ] && . "$PROJECT_LEVEL_CONFIG_FILE"
 }
 
-read_app_package_name() {
-    [ -z "$APP_PACKAGE_NAME" ] && APP_PACKAGE_NAME=$(get_value_from_build_gradle 'applicationId = "[^"]*"' 's/.*applicationId = "\([^"]*\)".*/\1/')
-    [ -z "$APP_PACKAGE_NAME" ] && error_exit "can't read applicationId from $GRADLE_APP_MODULE_BUILD_FILE."
-}
-
-read_app_version_name() {
-    [ -z "$APP_VERSION_NAME" ] && APP_VERSION_NAME=$(get_value_from_build_gradle 'versionName = "[^"]*"' 's/.*versionName = "\([^"]*\)".*/\1/')
-    [ -z "$APP_VERSION_NAME" ] && error_exit "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
-}
-
-read_compile_sdk_version() {
-    [ -z "$ANDROID_COMPILE_SDK_VERSION" ] && ANDROID_COMPILE_SDK_VERSION=$(get_value_from_build_gradle 'compileSdkVersion([0-9]*)' 's/.*compileSdkVersion(\([0-9]*\)).*/\1/')
-    [ -z "$ANDROID_COMPILE_SDK_VERSION" ] && error_exit "can't read compileSdkVersion from $GRADLE_APP_MODULE_BUILD_FILE."
-}
-
-read_build_tools_version() {
-    [ -z "$ANDROID_BUILD_TOOLS_VERSION" ] && ANDROID_BUILD_TOOLS_VERSION=$(get_value_from_build_gradle 'buildToolsVersion("[^"]*")' 's/.*buildToolsVersion("\([^"]*\)").*/\1/')
-    [ -z "$ANDROID_BUILD_TOOLS_VERSION" ] && error_exit "can't read buildToolsVersion from $GRADLE_APP_MODULE_BUILD_FILE."
+__unzip() {
+    if [ "$VERBOSE" = 'true' ] ; then
+        unzip $@
+    else
+        unzip -q $@
+    fi
 }
 
 #$1是png或者jpg
-convert_to_webp_internal() {
+__convert_to_webp_internal() {
     imageFiles=$(find . -name "*.$1")
     for imageFile in $imageFiles
     do
@@ -135,17 +110,9 @@ convert_to_webp_internal() {
     done
 }
 
-convert_to_webp() {
-    convert_to_webp_internal "png" &&
-    convert_to_webp_internal "jpg"
-}
-
-__unzip() {
-    if [ "$VERBOSE" = 'true' ] ; then
-        unzip $@
-    else
-        unzip -q $@
-    fi
+__convert_to_webp() {
+    __convert_to_webp_internal "png" &&
+    __convert_to_webp_internal "jpg"
 }
 
 __webp() {
@@ -169,7 +136,7 @@ __webp() {
         rm -rf res/drawable-ldrtl-xhdpi-v17 &&
         rm -rf res/drawable-ldrtl-xxhdpi-v17 && 
         rm -rf res/drawable-ldrtl-xxxhdpi-v17 &&
-        convert_to_webp &&
+        __convert_to_webp &&
         7za a -tzip -mx9 "$OUTPUT_APK_FILE" .
     )
     
@@ -472,9 +439,6 @@ __unset() {
     unset needInstall
 
     unset VERBOSE
-
-    unset JAR_SIGNER_FLAGS
-    unset APK_SIGNER_FLAGS
 }
 
 __check_JAVA_HOME() {
@@ -511,6 +475,8 @@ __check_ANDROID_HOME() {
 __check_PROJECT_DIR() {
     [ -d "$PROJECT_DIR" ] || error_exit "PROJECT_DIR=$PROJECT_DIR directory is not exist."
     info "PROJECT_DIR   = $PROJECT_DIR\n"
+    
+    cd "$PROJECT_DIR"
          
     [ -z "$GRADLEW" ] && GRADLEW="$PROJECT_DIR/gradlew"
     [ -f "$GRADLEW" ] || error_exit "$GRADLEW is not exist."
@@ -531,21 +497,21 @@ find_out_app_module() {
     do
         [ -d "$item" ] && {
             temp="$PROJECT_DIR/$item/build.gradle"
-            [ -f "$temp" ] && grep '"com.android.application"' "$temp" > /dev/null && {
+            [ -f "$temp" ] && grep "[\"|']com.android.application[\"|']" "$temp" > /dev/null && {
                 GRADLE_APP_MODULE_NAME="$item"
                 GRADLE_APP_MODULE_BUILD_FILE="$temp"
                 GRADLE_APP_MODULE_BUILD_FILE_TYPE='groovy'
             } && break
             
             temp="$PROJECT_DIR/$item/build.gradle.kts"
-            [ -f "$temp" ] && grep '"com.android.application"' "$temp" > /dev/null && {
+            [ -f "$temp" ] && grep "[\"|']com.android.application[\"|']" "$temp" > /dev/null && {
                 GRADLE_APP_MODULE_NAME="$item"
                 GRADLE_APP_MODULE_BUILD_FILE="$temp"
                 GRADLE_APP_MODULE_BUILD_FILE_TYPE='kotlin'
             } && break
         }
     done
-    [ -f "$GRADLE_APP_MODULE_BUILD_FILE" ] || error_exit "$PROJECT_DIR/build.gradle or $PROJECT_DIR/build.gradle.kts is not exist."
+    [ -f "$GRADLE_APP_MODULE_BUILD_FILE" ] || error_exit "$PROJECT_DIR/app/build.gradle or $PROJECT_DIR/app/build.gradle.kts is not exist."
 }
 
 __check_OUTPUT_DIR() {
@@ -576,7 +542,8 @@ __check_APP_NAME() {
 
 __check_APP_VERSION_NAME() {
     if [ -n "$PROJECT_DIR" ] ; then
-        read_app_version_name
+        [ -z "$APP_VERSION_NAME" ] && APP_VERSION_NAME=$(get_value_from_build_gradle 'versionName')
+        [ -z "$APP_VERSION_NAME" ] && error_exit "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
     else
         APP_VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'versionName' | awk 'BEGIN{RS=" "} /versionName/{print}' | sed "s/versionName=\'\(.*\)\'/\1/")
     fi
@@ -585,7 +552,8 @@ __check_APP_VERSION_NAME() {
 
 __check_APP_PACKAGE_NAME() {
     if [ -n "$PROJECT_DIR" ] ; then
-        read_app_package_name
+        [ -z "$APP_PACKAGE_NAME" ] && APP_PACKAGE_NAME=$(get_value_from_build_gradle 'applicationId')
+        [ -z "$APP_PACKAGE_NAME" ] && error_exit "can't read applicationId from $GRADLE_APP_MODULE_BUILD_FILE."
     else
         APP_PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep "package: name=" |  awk 'BEGIN{RS=" "} /^name/{print}' | sed "s/name=\'\(.*\)\'/\1/")
     fi
@@ -594,10 +562,13 @@ __check_APP_PACKAGE_NAME() {
 
 __check_KEY_STORE() {
     if [ -n "$PROJECT_DIR" ] ; then
-        [ -z "$KEY_STORE_FILE_PATH" ]    && read_keystore_info
-        [ -z "$KEY_STORE_PASSWORD" ]     && read_keystore_info 
-        [ -z "$KEY_STORE_KEY_ALIAS" ]    && read_keystore_info
-        [ -z "$KEY_STORE_KEY_PASSWORD" ] && read_keystore_info
+        [ -z "$KEY_STORE_FILE_PATH" ] && {
+            KEY_STORE_FILE_PATH=$(grep "storeFile\s*=*\s*file\s*(\s*[\"|'].*[\"|']\s*)" "$GRADLE_APP_MODULE_BUILD_FILE" | sed "s@.*[\"|']\(.*\)[\"|'].*@\1@")
+            KEY_STORE_FILE_PATH="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/$KEY_STORE_FILE_PATH"
+        }
+        [ -z "$KEY_STORE_PASSWORD" ]  && KEY_STORE_PASSWORD=$(get_value_from_build_gradle 'storePassword')
+        [ -z "$KEY_STORE_KEY_ALIAS" ] && KEY_STORE_KEY_ALIAS=$(get_value_from_build_gradle 'keyAlias')
+        [ -z "$KEY_STORE_KEY_PASSWORD" ] && KEY_STORE_KEY_PASSWORD=$(get_value_from_build_gradle 'keyPassword')
     else 
         [ -z "$KEY_STORE_FILE_PATH" ]    && error_exit "missing --keystore-file=FILE argument."
         [ -z "$KEY_STORE_PASSWORD" ]     && error_exit "missing --keystore-password=VALUE argument."
@@ -605,7 +576,7 @@ __check_KEY_STORE() {
         [ -z "$KEY_STORE_KEY_PASSWORD" ] && error_exit "missing --keystore-key-password=VALUE argument."
     fi
     
-    [ -f "$KEY_STORE_FILE_PATH" ] || error_exit "KEY_STORE_FILE_PATH = $KEY_STORE_FILE_PATH is not a file or is not exist."
+    [ -f "$KEY_STORE_FILE_PATH" ] || error_exit "KEY_STORE_FILE_PATH = ${KEY_STORE_FILE_PATH} is not a file or is not exist."
     
     info "KEY_STORE_FILE_PATH    = $KEY_STORE_FILE_PATH"
     info "KEY_STORE_PASSWORD     = $KEY_STORE_PASSWORD"
