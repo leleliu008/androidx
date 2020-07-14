@@ -21,7 +21,7 @@ check() {
 }
 
 package() {
-    depends=('curl' 'tar' 'gzip' 'bzip2' 'xz' 'make' 'cmake' 'vim' 'tree')
+    depends=('zip' 'unzip' 'p7zip')
     
     mkdir -p ${pkgdir}/usr/bin
     mkdir -p ${pkgdir}/usr/share/zsh/site-functions
