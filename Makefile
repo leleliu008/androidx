@@ -11,6 +11,8 @@ dist: bin/androidx zsh-completion/_androidx
     sha256sum $(filename)
 
 clean:
-	rm $(filename)
+	rm androidx-$(version)*.tar.gz
+	rm -rf src
+	rm -rf pkg
 
 .PHONY: clean
