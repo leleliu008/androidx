@@ -67,6 +67,7 @@ main() {
         if [ -f "/usr/local/bin/androidx" ] ; then
             error_exit "/usr/local/bin/androidx is already exist."
         else
+            [ -d '/usr/local/bin' ] || mkdir -p /usr/local/bin
             ln -sf `pwd`/bin/androidx /usr/local/bin/androidx
         fi
         
@@ -75,7 +76,7 @@ main() {
         else
             ln -sf `pwd`/zsh-completion/_androidx /usr/share/zsh/site-functions/_androidx
         fi
-         
+        
         success "Installed success.\n"
         msg "${Color_Purple}Note${Color_Off} : I have provide a zsh-completion script for androidx. when you've typed androidx then type TAB key, it will auto complete the rest for you. to apply this feature, you may need to run the command ${Color_Purple}autoload -U compinit && compinit${Color_Off}"
     else
