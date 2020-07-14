@@ -4,7 +4,7 @@ VERSION='0.1.0'
 FILE_NAME="androidx-${VERSION}.tar.gz"
 URL="https://github.com/leleliu008/androidx/releases/download/v0.1.0/${FILE_NAME}"
 INSTALL_DIR=/usr/local/opt/androidx
-DEST_LINK_ANDROIDX=/usr/local/bin/androidx
+DEST_LINK_BIN=/usr/local/bin/androidx
 DEST_LINK_ZSH_COMPLETION=/usr/share/zsh/site-functions/_androidx
 
 Color_Red='\033[0;31m'          # Red
@@ -36,14 +36,14 @@ own() {
 on_exit() {
     [ "$SUCCESS" = 'true' ] && return 0
     [ "$IS_CREATED_BY_ME_INSTALL_DIR" = 'true' ] && rm -rf "$INSTALL_DIR"
-    [ "$IS_CREATED_BY_ME_LINK_ANDROIDX" = 'true' ] && rm "$DEST_LINK_ANDROIDX"
+    [ "$IS_CREATED_BY_ME_LINK_BIN" = 'true' ] && rm "$DEST_LINK_BIN"
     [ "$IS_CREATED_BY_ME_LINK_ZSH_COMPLETION" = 'true' ] && rm "$DEST_LINK_ZSH_COMPLETION"
 }
 
 main() {
     unset SUCCESS
     unset IS_CREATED_BY_ME_INSTALL_DIR
-    unset IS_CREATED_BY_ME_LINK_ANDROIDX
+    unset IS_CREATED_BY_ME_LINK_BIN
     unset IS_CREATED_BY_ME_LINK_ZSH_COMPLETION
      
     trap on_exit EXIT
@@ -87,12 +87,12 @@ main() {
         chmod 111 bin/androidx
         chmod 400 zsh-completion/_androidx
          
-        if [ -f "$DEST_LINK_ANDROIDX" ] ; then
-            error_exit "$DEST_LINK_ANDROIDX is already exist."
+        if [ -f "$DEST_LINK_BIN" ] ; then
+            error_exit "$DEST_LINK_BIN is already exist."
         else
             [ -d '/usr/local/bin' ] || mkdir -p /usr/local/bin
-            ln -s "$INSTALL_DIR/bin/androidx" "$DEST_LINK_ANDROIDX" &&
-            IS_CREATED_BY_ME_LINK_ANDROIDX=true
+            ln -s "$INSTALL_DIR/bin/androidx" "$DEST_LINK_BIN" &&
+            IS_CREATED_BY_ME_LINK_BIN=true
         fi
         
         if [ -f "$DEST_LINK_ZSH_COMPLETION" ] ; then
