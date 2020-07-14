@@ -31,9 +31,13 @@ own() {
 }
 
 main() {
+    if command -v androidx ; then
+        error_exit "androidx is already installed."
+    fi
+
     INSTALL_DIR='/usr/local/opt/androidx'
     if [ -d "$INSTALL_DIR" ] ; then
-        error_exit "androidx is already installed in /usr/local/opt/androidx"
+        error_exit "androidx is already installed. in /usr/local/opt/androidx"
     else
         mkdir -p "$INSTALL_DIR" && cd "$INSTALL_DIR"
     fi
