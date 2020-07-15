@@ -710,7 +710,7 @@ __build_android_project() {
 }
 
 __build() {
-    command -v gsed  > /dev/null && 
+    command -v gsed  > /dev/null || 
     command -v sed   > /dev/null || error_exit "sed is not installed."
     command -v grep  > /dev/null || error_exit "grep is not installed."
     command -v unzip > /dev/null || error_exit "unzip is not installed."
