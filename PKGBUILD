@@ -9,7 +9,7 @@ license=('custom')
 url="https://github.com/leleliu008/androidx"
 makedepends=()
 source=(https://github.com/leleliu008/androidx/releases/download/v0.1.0/${pkgname}-${pkgver}.tar.gz)
-sha256sums=('9ba88d4bc33d9214c4e040552aee04213f32dda4f0584c0f43fcaa1027a08e74')
+sha256sums=('2544aaddb6527392a5170b06a0dda94b97c1e869b8f1fb0fb8918760a449baea')
 
 build() {
     true
