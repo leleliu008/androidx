@@ -488,7 +488,6 @@ __check_PROJECT_DIR() {
     [ -f "$GRADLE_SETTINGS_FILE" ] || GRADLE_SETTINGS_FILE="$PROJECT_DIR/settings.gradle"
     [ -f "$GRADLE_SETTINGS_FILE" ] || error_exit "$PROJECT_DIR/settings.gradle or $PROJECT_DIR/settings.gradle.kts is not exist."
     [ -f "$PROJECT_DIR/gradle.properties" ] || error_exit "$PROJECT_DIR/gradle.properties is not exist."
-    [ -f "$PROJECT_DIR/local.properties" ]  || error_exit "$PROJECT_DIR/local.properties is not exist."
     [ -d "$PROJECT_DIR/gradle" ]            || error_exit "$PROJECT_DIR/gradle directory is not exist."
 }
 
@@ -691,8 +690,10 @@ __modify_android_manifest_xml_debuggable() {
 
 
 __build_android_project() {
-    sed_in_place "s|sdk\.dir=.*|sdk.dir=${ANDROID_HOME}|g" "$PROJECT_DIR/local.properties"
-     
+    if [ -f "$PROJECT_DIR/local.properties" ] ; then
+        sed_in_place "s|sdk\.dir=.*|sdk.dir=${ANDROID_HOME}|g" "$PROJECT_DIR/local.properties"
+    fi
+    
     # 修改版本号（版本号使用十位的Unix时间戳，它精确到秒，而且它不会超过Java中的int类型的最大范围（2147483647），示例：1516856238）
     sed_in_place "s|versionCode.*=.*|versionCode = $TIMESTAMP_UNIX|g" "$GRADLE_APP_MODULE_BUILD_FILE"
      
@@ -709,6 +710,11 @@ __build_android_project() {
 }
 
 __build() {
+    command -v gsed  > /dev/null && 
+    command -v sed   > /dev/null || error_exit "sed is not installed."
+    command -v grep  > /dev/null || error_exit "grep is not installed."
+    command -v unzip > /dev/null || error_exit "unzip is not installed."
+
     OS="$(uname -s)"
     TIMESTAMP_UNIX="$(date +%s)"
     TIMESTAMP_FORM=$(convert_unix_timestamp_to_format_string "$TIMESTAMP_UNIX" "+%Y%m%d%H%M%S")
@@ -718,12 +724,12 @@ __build() {
         case $1 in
             --webp)
                 isWebp=true
-                command -v cwebp > /dev/null || error_exit "cwebp is not installed."
-                command -v 7za   > /dev/null || error_exit "7za is not installed."
+                command -v cwebp > /dev/null || error_exit "libwebp is not installed."
+                command -v 7za   > /dev/null || error_exit "p7zip is not installed."
                 ;;
             --resguard)
                 isResGuard=true
-                command -v 7za > /dev/null || error_exit "p7ip is not installed."
+                command -v 7za > /dev/null || error_exit "p7zip is not installed."
                 command -v andresguard > /dev/null || error_exit "andresguard-cli is not installed." 
                 ;;
             --redex)

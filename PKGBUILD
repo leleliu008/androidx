@@ -9,7 +9,7 @@ license=('custom')
 url="https://github.com/leleliu008/androidx"
 makedepends=()
 source=(https://github.com/leleliu008/androidx/releases/download/v0.1.0/${pkgname}-${pkgver}.tar.gz)
-sha256sums=('e7e5fa1246e3134acf910c1624d169c07c8369ae5eab64fc120706b5d6d533e2')
+sha256sums=('9ba88d4bc33d9214c4e040552aee04213f32dda4f0584c0f43fcaa1027a08e74')
 
 build() {
     true
@@ -21,11 +21,11 @@ check() {
 }
 
 package() {
-    depends=('zip' 'unzip' 'p7zip')
+    depends=('zip' 'unzip' 'p7zip' 'sed' 'grep')
     
-    mkdir -p ${pkgdir}/usr/bin
-    mkdir -p ${pkgdir}/usr/share/zsh/site-functions
+    mkdir -p ${pkgdir}/usr/local/bin
+    mkdir -p ${pkgdir}/usr/local/share/zsh/site-functions
     
-    cp -f ${srcdir}/bin/androidx ${pkgdir}/usr/bin/
-    cp -f ${srcdir}/zsh-completion/_androidx ${pkgdir}/usr/share/zsh/site-functions/
+    cp -f ${srcdir}/bin/androidx ${pkgdir}/usr/local/bin/
+    cp -f ${srcdir}/zsh-completion/_androidx ${pkgdir}/usr/local/share/zsh/site-functions/
 }
