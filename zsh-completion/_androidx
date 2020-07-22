@@ -33,7 +33,6 @@ function _androidx() {
         option)
             case $words[1] in
                  build)
-                    echo "$state = $state\nwords = $words" >> ~/.xx
                     _arguments \
                         '1: :_androidx_build' \
                         '*:: :->other'
