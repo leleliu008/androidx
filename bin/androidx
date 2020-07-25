@@ -10,47 +10,52 @@ Color_Purple='\033[0;35m'       # Purple
 Color_Off='\033[0m'             # Reset
 
 msg() {
-    printf "%b\n" "$1"
+    printf "%b" "$*"
+}
+
+echo() {
+    msg "$@\n"
 }
 
 info() {
-    msg "${Color_Purple}[★] $@${Color_Off}"
-}
-
-item() {
-    msg "${Color_Blue}[-] $@${Color_Off}"
+    msg "${Color_Purple}$@\n${Color_Off}"
 }
 
 success() {
-    msg "${Color_Green}[✔] $@${Color_Off}"
+    msg "${Color_Green}[✔] $@\n${Color_Off}"
 }
 
 warn() {
-    msg "${Color_Yellow}🔥 $@${Color_Off}"
+    msg "${Color_Yellow}🔥 $@\n${Color_Off}"
 }
 
 error() {
-    msg "${Color_Red}[✘] $@${Color_Off}"
+    msg "${Color_Red}[✘] $@\n${Color_Off}"
 }
 
-error_exit() {
-    msg "${Color_Red}[✘] $@${Color_Off}"
+die() {
+    msg "${Color_Red}[✘] $@\n${Color_Off}"
     exit 1
 }
 
 sed_in_place() {
-    command -v gsed > /dev/null && gsed -i "$1" "$2" && return 0
-    command -v sed  > /dev/null && (sed -i "$1" "$2" 2> /dev/null || sed -i "" "$1" "$2") && return 0
-    error_exit "please install sed utility.\n"
+    if command -v gsed > /dev/null ; then
+        gsed -i "$1" "$2"
+    elif command -v sed  > /dev/null ; then
+        sed -i    "$1" "$2" 2> /dev/null ||
+        sed -i "" "$1" "$2"
+    else
+        die "please install sed utility."
+    fi
 }
 
-convert_unix_timestamp_to_format_string() {
+format_unix_timestamp() {
    date -jf "%s" "$1" "$2" 2> /dev/null ||
    date -d      "@$1" "$2"
 }
 
 getvalue() {
-    msg "$1" | awk -F= '{print $2}'
+    echo "$1" | cut -d= -f2
 }
 
 get_value_from_build_gradle() {
@@ -61,13 +66,13 @@ get_value_from_build_gradle() {
 #$1为原来的路径
 #$2为要追加的字符串
 append_filename() {
-    printf "%s\n" "$(dirname "$1")/$(basename "$1" .apk)_$2.apk"
+    echo "$(dirname "$1")/$(basename "$1" .apk)_$2.apk"
 }
 
 is_a_valid_apk_file() {
-    [ -z "$1" ] && error_exit "must provide a apk file path."
-    [ -f "$1" ] || error_exit "$1 file is not exist."
-    unzip -t "$1" > /dev/null || error_exit "$1 is not a valid apk file."
+    [ -z "$1" ] && die "must provide a apk file path."
+    [ -f "$1" ] || die "$1 file is not exist."
+    unzip -t "$1" > /dev/null || die "$1 is not a valid apk file."
 }
 
 __read_my_config_file() {
@@ -91,7 +96,7 @@ __convert_to_webp_internal() {
     imageFiles=$(find . -name "*.$1")
     for imageFile in $imageFiles
     do
-        if msg "$imageFile" | grep "\.9.png" > /dev/null ; then
+        if printf "$imageFile" | grep "\.9.png" > /dev/null ; then
             info "$imageFile is 9 png, so not convert"
         else
             name=$(basename "$imageFile")
@@ -141,10 +146,10 @@ __webp() {
     )
     
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__webp success.\n"
+        success "__webp success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__webp failed.\n"
+        die "__webp failed."
     fi
 }
 
@@ -160,10 +165,10 @@ __redex() {
     redex "$INPUT_APK_FILE" -o "$OUTPUT_APK_FILE"
     
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__redex success.\n"
+        success "__redex success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__redex failed.\n"
+        die "__redex failed."
     fi
 }
 
@@ -184,10 +189,10 @@ __resguard() {
         -signature "$KEY_STORE_FILE_PATH" "$KEY_STORE_PASSWORD" "$KEY_STORE_KEY_PASSWORD" "$KEY_STORE_KEY_ALIAS"
 
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__resguard success.\n"
+        success "__resguard success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__resguard failed.\n"
+        die "__resguard failed."
     fi
 }
 
@@ -199,35 +204,35 @@ __jiagu() {
      
     #使用360账户登录
     outputMessage=$(360jiagubao -login "$QIHU360_USERNAME" "$QIHU360_PASSWORD" | tail -n 1)
-    if msg "$outputMessage" | grep "succe" ; then
+    if printf "$outputMessage" | grep "succe" ; then
         success "360jiagubao $outputMessage"
     else
         info "QIHU360_PASSWORD = $QIHU360_USERNAME"
         info "QIHU360_PASSWORD = $QIHU360_PASSWORD"
-        error_exit "360jiagubao $outputMessage"
+        die "360jiagubao $outputMessage"
     fi
     
     outputMessage=""
     
     #导入签名信息
     outputMessage=$(360jiagubao -importsign "$KEY_STORE_FILE_PATH" "$KEY_STORE_PASSWORD" "$KEY_STORE_KEY_ALIAS" "$KEY_STORE_KEY_PASSWORD" | tail -n 1)
-    if msg "$outputMessage" | grep "succe" ; then
+    if printf "$outputMessage" | grep "succe" ; then
         success "360jiagubao $outputMessage"
     else
-        error_exit "360jiagubao $outputMessage"
+        die "360jiagubao $outputMessage"
     fi
     
     #加固，并进行v1签名
-    360jiagubao -jiagu "$INPUT_APK_FILE" "$WORKING_DIR" -autosign || error_exit "__jiagu failed!"
+    360jiagubao -jiagu "$INPUT_APK_FILE" "$WORKING_DIR" -autosign || die "__jiagu failed!"
     
     OUTPUT_APK_FILE=$(find "$WORKING_DIR" -name "*_jiagu_sign.apk" | head -n 1)
     info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
     
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__jiagu success.\n"
+        success "__jiagu success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__jiagu failed.\n"
+        die "__jiagu failed."
     fi
 }
 
@@ -259,10 +264,10 @@ __sign_v1() {
     fi
 
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__sign_v1 success.\n"
+        success "__sign_v1 success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__sign_v1 failed.\n"
+        die "__sign_v1 failed."
     fi
 }
 
@@ -278,10 +283,10 @@ __sign_v2() {
     apksigner sign --ks "$KEY_STORE_FILE_PATH" --ks-pass pass:"$KEY_STORE_PASSWORD" --ks-key-alias "$KEY_STORE_KEY_ALIAS" --key-pass pass:"$KEY_STORE_PASSWORD" --out "$OUTPUT_APK_FILE" "$INPUT_APK_FILE" 
     
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__sign_v2 success.\n"
+        success "__sign_v2 success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__sign_v2 failed.\n"
+        die "__sign_v2 failed."
     fi
 }
 
@@ -294,9 +299,9 @@ __sign_v2_verify() {
     apksigner verify -verbose "$INPUT_APK_FILE"
 
     if [ $? -eq 0 ] ; then
-        success "__sign_v2_verify success.\n"
+        success "__sign_v2_verify success."
     else
-        error_exit "__sign_v2_verify failed.\n"
+        die "__sign_v2_verify failed."
     fi
 }
 
@@ -314,10 +319,10 @@ __zipalign() {
     fi
     
     if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__zipalign success.\n"
+        success "__zipalign success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__zipalign failed.\n"
+        die "__zipalign failed."
     fi
 }
 
@@ -335,10 +340,10 @@ __copy_to_working_dir() {
     cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
     
     if [ $? -eq 0 ] ; then
-        success "__copy_to_working_dir success.\n"
+        success "__copy_to_working_dir success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__copy_to_working_dir failed.\n"
+        die "__copy_to_working_dir failed."
     fi
 }
 
@@ -355,10 +360,10 @@ __copy_to_output_dir() {
     cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
     
     if [ $? -eq 0 ] ; then
-        success "__copy_to_output_dir success.\n"
+        success "__copy_to_output_dir success."
         INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
-        error_exit "__copy_to_output_dir failed.\n"
+        die "__copy_to_output_dir failed."
     fi
 }
 
@@ -375,9 +380,9 @@ __walle() {
     walle batch -f "$CHANNELS_CONFIG_FILE" "$INPUT_APK_FILE" "$OUTPUT_DIR/$CHANNELS_OUT_DIR"
     
     if [ $? -eq 0 ] ; then
-        success "__walle success.\n"
+        success "__walle success."
     else
-        error_exit "__walle failed.\n"
+        die "__walle failed."
     fi
 }
 
@@ -391,9 +396,9 @@ __zip() {
     
     if [ $? -eq 0 ] ; then
         info "OUTPUT_ZIP_FILE = $(du -h "$OUTPUT_ZIP_FILE" | awk '{print $2"   "$1}')"
-        success "__zip success.\n"
+        success "__zip success."
     else
-        error_exit "__zip failed.\n"
+        die "__zip failed."
     fi
 }
 
@@ -442,25 +447,25 @@ __unset() {
 }
 
 __check_JAVA_HOME() {
-    [ -z "$JAVA_HOME" ] && error_exit "JAVA_HOME environment variable is not set."
-    [ -d "$JAVA_HOME" ] || error_exit "JAVA_HOME=$JAVA_HOME directory is not exist."
-    [ -d "$JAVA_HOME/bin" ] || error_exit "$JAVA_HOME/bin directory is not exist."
+    [ -z "$JAVA_HOME" ] && die "JAVA_HOME environment variable is not set."
+    [ -d "$JAVA_HOME" ] || die "JAVA_HOME=$JAVA_HOME directory is not exist."
+    [ -d "$JAVA_HOME/bin" ] || die "$JAVA_HOME/bin directory is not exist."
     export PATH="$JAVA_HOME/bin:$PATH"
 }
 
 __check_ANDROID_HOME() {
-    [ -z "$ANDROID_HOME" ] && error_exit "ANDROID_HOME environment variable is not set."
-    [ -d "$ANDROID_HOME" ] || error_exit "ANDROID_HOME=$ANDROID_HOME directory is not exist."
+    [ -z "$ANDROID_HOME" ] && die "ANDROID_HOME environment variable is not set."
+    [ -d "$ANDROID_HOME" ] || die "ANDROID_HOME=$ANDROID_HOME directory is not exist."
     
     ANDROID_PLATFORMS_DIR="$ANDROID_HOME/platforms"
-    [ -d "$ANDROID_PLATFORMS_DIR" ] || error_exit "$ANDROID_PLATFORMS_DIR directory is not exist."
+    [ -d "$ANDROID_PLATFORMS_DIR" ] || die "$ANDROID_PLATFORMS_DIR directory is not exist."
     
     ANDROID_PLATFORM_TOOLS_DIR="$ANDROID_HOME/platform-tools"
-    [ -d "$ANDROID_PLATFORM_TOOLS_DIR" ] || error_exit "$ANDROID_PLATFORM_TOOLS_DIR directory is not exist."
+    [ -d "$ANDROID_PLATFORM_TOOLS_DIR" ] || die "$ANDROID_PLATFORM_TOOLS_DIR directory is not exist."
     export PATH="$ANDROID_PLATFORM_TOOLS_DIR:$PATH"
     
     ANDROID_BUILD_TOOLS_DIR="$ANDROID_HOME/build-tools"
-    [ -d "$ANDROID_BUILD_TOOLS_DIR" ] || error_exit "$ANDROID_BUILD_TOOLS_DIR directory is not exist."
+    [ -d "$ANDROID_BUILD_TOOLS_DIR" ] || die "$ANDROID_BUILD_TOOLS_DIR directory is not exist."
      
     for item in $(cd "$ANDROID_BUILD_TOOLS_DIR"; ls | sort --version-sort --reverse)
     do
@@ -473,22 +478,22 @@ __check_ANDROID_HOME() {
 }
 
 __check_PROJECT_DIR() {
-    [ -d "$PROJECT_DIR" ] || error_exit "PROJECT_DIR=$PROJECT_DIR directory is not exist."
-    info "PROJECT_DIR   = $PROJECT_DIR\n"
+    [ -d "$PROJECT_DIR" ] || die "PROJECT_DIR=$PROJECT_DIR directory is not exist."
+    info "PROJECT_DIR   = $PROJECT_DIR"
     
     cd "$PROJECT_DIR"
          
     [ -z "$GRADLEW" ] && GRADLEW="$PROJECT_DIR/gradlew"
-    [ -f "$GRADLEW" ] || error_exit "$GRADLEW is not exist."
-    [ -x "$GRADLEW" ] || error_exit "$GRADLEW is not execuable."
+    [ -f "$GRADLEW" ] || die "$GRADLEW is not exist."
+    [ -x "$GRADLEW" ] || die "$GRADLEW is not execuable."
 
     find_out_app_module
 
     [ -z "$GRADLE_SETTINGS_FILE" ] && GRADLE_SETTINGS_FILE="$PROJECT_DIR/settings.gradle.kts"
     [ -f "$GRADLE_SETTINGS_FILE" ] || GRADLE_SETTINGS_FILE="$PROJECT_DIR/settings.gradle"
-    [ -f "$GRADLE_SETTINGS_FILE" ] || error_exit "$PROJECT_DIR/settings.gradle or $PROJECT_DIR/settings.gradle.kts is not exist."
-    [ -f "$PROJECT_DIR/gradle.properties" ] || error_exit "$PROJECT_DIR/gradle.properties is not exist."
-    [ -d "$PROJECT_DIR/gradle" ]            || error_exit "$PROJECT_DIR/gradle directory is not exist."
+    [ -f "$GRADLE_SETTINGS_FILE" ] || die "$PROJECT_DIR/settings.gradle or $PROJECT_DIR/settings.gradle.kts is not exist."
+    [ -f "$PROJECT_DIR/gradle.properties" ] || die "$PROJECT_DIR/gradle.properties is not exist."
+    [ -d "$PROJECT_DIR/gradle" ]            || die "$PROJECT_DIR/gradle directory is not exist."
 }
 
 find_out_app_module() {
@@ -510,30 +515,30 @@ find_out_app_module() {
             } && break
         }
     done
-    [ -f "$GRADLE_APP_MODULE_BUILD_FILE" ] || error_exit "$PROJECT_DIR/app/build.gradle or $PROJECT_DIR/app/build.gradle.kts is not exist."
+    [ -f "$GRADLE_APP_MODULE_BUILD_FILE" ] || die "$PROJECT_DIR/app/build.gradle or $PROJECT_DIR/app/build.gradle.kts is not exist."
 }
 
 __check_OUTPUT_DIR() {
     [ -z "$OUTPUT_DIR" ] && {
         if [ -n "$PROJECT_DIR" ] ; then
             OUTPUT_DIR="$PROJECT_DIR"
-            warn "missing --output-dir=DIR argument. so we use the default value [PROJECT_DIR=$PROJECT_DIR]\n"
+            warn "missing --output-dir=DIR argument. so we use the default value [PROJECT_DIR=$PROJECT_DIR]"
         else
             OUTPUT_DIR="$PWD"
-            warn "missing --output-dir=DIR argument. so we use the default value [PWD=$PWD]\n"
+            warn "missing --output-dir=DIR argument. so we use the default value [PWD=$PWD]"
         fi
     }
-    info "OUTPUT_DIR    = $OUTPUT_DIR\n"
+    info "OUTPUT_DIR    = $OUTPUT_DIR"
 }
 
 __check_APP_NAME() {
     [ -z "$APP_NAME" ] && {
         if [ -n "$PROJECT_DIR" ] ; then
             APP_NAME="$(basename "$PROJECT_DIR")"
-            warn "missing --app-name argument. so we use the default value [basename $PROJECT_DIR]\n"
+            warn "missing --app-name argument. so we use the default value [basename $PROJECT_DIR]"
         else
             APP_NAME="$(basename "$OUTPUT_DIR")"
-            warn "missing --app-name argument. so we use the default value [basename $OUTPUT_DIR]\n"
+            warn "missing --app-name argument. so we use the default value [basename $OUTPUT_DIR]"
         fi
     }
     info "APP_NAME         = $APP_NAME"
@@ -542,7 +547,7 @@ __check_APP_NAME() {
 __check_APP_VERSION_NAME() {
     if [ -n "$PROJECT_DIR" ] ; then
         [ -z "$APP_VERSION_NAME" ] && APP_VERSION_NAME=$(get_value_from_build_gradle 'versionName')
-        [ -z "$APP_VERSION_NAME" ] && error_exit "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
+        [ -z "$APP_VERSION_NAME" ] && die "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
     else
         APP_VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'versionName' | awk 'BEGIN{RS=" "} /versionName/{print}' | sed "s/versionName=\'\(.*\)\'/\1/")
     fi
@@ -552,11 +557,11 @@ __check_APP_VERSION_NAME() {
 __check_APP_PACKAGE_NAME() {
     if [ -n "$PROJECT_DIR" ] ; then
         [ -z "$APP_PACKAGE_NAME" ] && APP_PACKAGE_NAME=$(get_value_from_build_gradle 'applicationId')
-        [ -z "$APP_PACKAGE_NAME" ] && error_exit "can't read applicationId from $GRADLE_APP_MODULE_BUILD_FILE."
+        [ -z "$APP_PACKAGE_NAME" ] && die "can't read applicationId from $GRADLE_APP_MODULE_BUILD_FILE."
     else
         APP_PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep "package: name=" |  awk 'BEGIN{RS=" "} /^name/{print}' | sed "s/name=\'\(.*\)\'/\1/")
     fi
-    info "APP_PACKAGE_NAME = $APP_PACKAGE_NAME\n"
+    info "APP_PACKAGE_NAME = $APP_PACKAGE_NAME"
 }
 
 __check_KEY_STORE() {
@@ -569,18 +574,18 @@ __check_KEY_STORE() {
         [ -z "$KEY_STORE_KEY_ALIAS" ] && KEY_STORE_KEY_ALIAS=$(get_value_from_build_gradle 'keyAlias')
         [ -z "$KEY_STORE_KEY_PASSWORD" ] && KEY_STORE_KEY_PASSWORD=$(get_value_from_build_gradle 'keyPassword')
     else 
-        [ -z "$KEY_STORE_FILE_PATH" ]    && error_exit "missing --keystore-file=FILE argument."
-        [ -z "$KEY_STORE_PASSWORD" ]     && error_exit "missing --keystore-password=VALUE argument."
-        [ -z "$KEY_STORE_KEY_ALIAS" ]    && error_exit "missing --keystore-key-alias=VALUE argument."
-        [ -z "$KEY_STORE_KEY_PASSWORD" ] && error_exit "missing --keystore-key-password=VALUE argument."
+        [ -z "$KEY_STORE_FILE_PATH" ]    && die "missing --keystore-file=FILE argument."
+        [ -z "$KEY_STORE_PASSWORD" ]     && die "missing --keystore-password=VALUE argument."
+        [ -z "$KEY_STORE_KEY_ALIAS" ]    && die "missing --keystore-key-alias=VALUE argument."
+        [ -z "$KEY_STORE_KEY_PASSWORD" ] && die "missing --keystore-key-password=VALUE argument."
     fi
     
-    [ -f "$KEY_STORE_FILE_PATH" ] || error_exit "KEY_STORE_FILE_PATH = ${KEY_STORE_FILE_PATH} is not a file or is not exist."
+    [ -f "$KEY_STORE_FILE_PATH" ] || die "KEY_STORE_FILE_PATH = ${KEY_STORE_FILE_PATH} is not a file or is not exist."
     
     info "KEY_STORE_FILE_PATH    = $KEY_STORE_FILE_PATH"
     info "KEY_STORE_PASSWORD     = $KEY_STORE_PASSWORD"
     info "KEY_STORE_KEY_ALIAS    = $KEY_STORE_KEY_ALIAS"
-    info "KEY_STORE_KEY_PASSWORD = $KEY_STORE_KEY_PASSWORD\n"
+    info "KEY_STORE_KEY_PASSWORD = $KEY_STORE_KEY_PASSWORD"
 }
 
 __check_RESGUARD_CONFIG_FILE() {
@@ -637,44 +642,44 @@ __check_RESGUARD_CONFIG_FILE() {
 
 </resproguard>
 EOF
-        error_exit "$RESGUARD_CONFIG_FILE is not exist. so we have generated it for you, modify it yourself, then try again. see details: https://github.com/shwenzhang/AndResGuard/blob/master/doc/how_to_work.md#how-to-write-configxml-file"
+        die "$RESGUARD_CONFIG_FILE is not exist. so we have generated it for you, modify it yourself, then try again. see details: https://github.com/shwenzhang/AndResGuard/blob/master/doc/how_to_work.md#how-to-write-configxml-file"
     }
     
-    info "RESGUARD_CONFIG_FILE = $RESGUARD_CONFIG_FILE\n"
+    info "RESGUARD_CONFIG_FILE = $RESGUARD_CONFIG_FILE"
 
-    [ -z "$RESGUARD_CONFIG_FILE" ] && error_exit "RESGUARD_CONFIG_FILE is not set. you can config it in \$HOME/.androidx or use --resguard-config-file=FILE to set it, then try again."
-    [ -f "$RESGUARD_CONFIG_FILE" ] || error_exit "RESGUARD_CONFIG_FILE = $RESGUARD_CONFIG_FILE is not a file or is not exist."
+    [ -z "$RESGUARD_CONFIG_FILE" ] && die "RESGUARD_CONFIG_FILE is not set. you can config it in \$HOME/.androidx or use --resguard-config-file=FILE to set it, then try again."
+    [ -f "$RESGUARD_CONFIG_FILE" ] || die "RESGUARD_CONFIG_FILE = $RESGUARD_CONFIG_FILE is not a file or is not exist."
 }
 
 __check_QIHU360_account() {
     __read_my_config_file
-    [ -z "$QIHU360_USERNAME" ] && [ -z "$QIHU360_PASSWORD" ] && error_exit "QIHU360_USERNAME and QIHU360_PASSWORD are not set. you can config it in \$HOME/.androidx, then try again."
-    [ -z "$QIHU360_USERNAME" ] && error_exit "QIHU360_USERNAME is not set. you can config it in \$HOME/.androidx, then try again."
-    [ -z "$QIHU360_PASSWORD" ] && error_exit "QIHU360_PASSWORD is not set. you can config it in \$HOME/.androidx, then try again."
+    [ -z "$QIHU360_USERNAME" ] && [ -z "$QIHU360_PASSWORD" ] && die "QIHU360_USERNAME and QIHU360_PASSWORD are not set. you can config it in \$HOME/.androidx, then try again."
+    [ -z "$QIHU360_USERNAME" ] && die "QIHU360_USERNAME is not set. you can config it in \$HOME/.androidx, then try again."
+    [ -z "$QIHU360_PASSWORD" ] && die "QIHU360_PASSWORD is not set. you can config it in \$HOME/.androidx, then try again."
 }
 
 __check_CHANNELS_CONFIG_FILE() {
     [ -z "$CHANNELS_CONFIG_FILE" ] && {
         if [ -n "$PROJECT_DIR" ] ; then
             CHANNELS_CONFIG_FILE="$PROJECT_DIR/channels-config.txt"
-            [ -f "$CHANNELS_CONFIG_FILE" ] || error_exit "CHANNELS_CONFIG_FILE is not set. you can create a file which name is channels-config.txt in \$PROJECT_DIR or use --channels-config-file=FILE argument to specify it, then try again."
+            [ -f "$CHANNELS_CONFIG_FILE" ] || die "CHANNELS_CONFIG_FILE is not set. you can create a file which name is channels-config.txt in \$PROJECT_DIR or use --channels-config-file=FILE argument to specify it, then try again."
         elif [ -n "$INPUT_APK_FILE" ] ; then
             CHANNELS_CONFIG_FILE="$PWD/channels-config.txt"
-            [ -f "$CHANNELS_CONFIG_FILE" ] || error_exit "CHANNELS_CONFIG_FILE is not set. you can create a file which name os channels-config.txt in \$PWD or use --channels-config-file=FILE to specify it, then try again."
+            [ -f "$CHANNELS_CONFIG_FILE" ] || die "CHANNELS_CONFIG_FILE is not set. you can create a file which name os channels-config.txt in \$PWD or use --channels-config-file=FILE to specify it, then try again."
         fi
     }
     
-    [ -f "$CHANNELS_CONFIG_FILE" ] || error_exit "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE is not a file or is not exist."
-    info "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE\n"
+    [ -f "$CHANNELS_CONFIG_FILE" ] || die "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE is not a file or is not exist."
+    info "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE"
 }
 
 __check_ENVIRONMENT() {
     [ -z "${ENVIRONMENT}" ] && {
         ENVIRONMENT=debug
-        warn "missing --environment=VALUE argument. so we use the default value [debug].\n"
+        warn "missing --environment=VALUE argument. so we use the default value [debug]."
     }
     
-    info "ENVIRONMENT   = $ENVIRONMENT\n"
+    info "ENVIRONMENT   = $ENVIRONMENT"
 }
 
 # 修改AndroidManifest.xml里面的android:debuggable开关
@@ -704,55 +709,58 @@ __build_android_project() {
     "$GRADLEW" clean
     
     #开始构建
-    "$GRADLEW" assemble$(msg "$ENVIRONMENT" | awk '{print(toupper(substr($0, 1, 1))""substr($0, 2))}') || error_exit "build failed."
+    "$GRADLEW" assemble$(printf "$ENVIRONMENT" | awk '{print(toupper(substr($0, 1, 1))""substr($0, 2))}') || die "build failed."
      
     INPUT_APK_FILE="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/build/outputs/apk/${ENVIRONMENT}/${GRADLE_APP_MODULE_NAME}-${ENVIRONMENT}.apk"
 }
 
 __build() {
     command -v gsed  > /dev/null || 
-    command -v sed   > /dev/null || error_exit "sed is not installed."
-    command -v grep  > /dev/null || error_exit "grep is not installed."
-    command -v unzip > /dev/null || error_exit "unzip is not installed."
+    command -v sed   > /dev/null || die "sed is not installed."
+    command -v grep  > /dev/null || die "grep is not installed."
+    command -v unzip > /dev/null || die "unzip is not installed."
 
     OS="$(uname -s)"
     TIMESTAMP_UNIX="$(date +%s)"
-    TIMESTAMP_FORM=$(convert_unix_timestamp_to_format_string "$TIMESTAMP_UNIX" "+%Y%m%d%H%M%S")
+    TIMESTAMP_FORM=$(format_unix_timestamp "$TIMESTAMP_UNIX" "+%Y%m%d%H%M%S")
     
     while [ -n "$1" ]
     do
         case $1 in
             --webp)
                 isWebp=true
-                command -v cwebp > /dev/null || error_exit "libwebp is not installed."
-                command -v 7za   > /dev/null || error_exit "p7zip is not installed."
+                command -v cwebp > /dev/null || die "libwebp is not installed."
+                command -v 7za   > /dev/null || die "p7zip is not installed."
                 ;;
             --resguard)
                 isResGuard=true
-                command -v 7za > /dev/null || error_exit "p7zip is not installed."
-                command -v andresguard > /dev/null || error_exit "andresguard-cli is not installed." 
+                command -v 7za > /dev/null || die "p7zip is not installed."
+                command -v andresguard > /dev/null || die "andresguard-cli is not installed." 
                 ;;
             --redex)
-                command -v redex > /dev/null || error_exit "redex is not installed."
+                command -v redex > /dev/null || die "redex is not installed."
                 isReDex=true
                 ;;
             --jiagu)
-                command -v 360jiagubao > /dev/null || error_exit "qihu360jiagubao is not installed."
+                command -v 360jiagubao > /dev/null || die "qihu360jiagubao is not installed."
                 isJiaGu=true
                 ;;
             --channels-gen)
-                command -v walle > /dev/null || error_exit "walle-cli is not installed."
+                command -v walle > /dev/null || die "walle-cli is not installed."
                 isGenChannels=true
                 ;;
             --channels-zip)
-                command -v zip > /dev/null || error_exit "zip is not installed."
+                command -v zip > /dev/null || die "zip is not installed."
                 isZipChannels=true
                 ;;
             --install)
                 needInstall=true
                 ;;
-            -v|--verbose)
+            --verbose|-v)
                 VERBOSE=true
+                ;;
+            --xtrace|-x)
+                set -x
                 ;;
             --app-name=*)
                 APP_NAME=$(getvalue "$1")
@@ -766,55 +774,55 @@ __build() {
                 case "$INPUT_APK_FILE" in
                     /*) ;;
                     \~|\~/) INPUT_APK_FILE="$HOME" ;;
-                    \~/*)   INPUT_APK_FILE="${HOME}$(msg "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   INPUT_APK_FILE="${HOME}$(printf "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
                     .|./)   INPUT_APK_FILE="$PWD" ;;
                     *)      INPUT_APK_FILE="$PWD/$INPUT_APK_FILE" ;;
                 esac
                 ;;
             --channels-config-file=*)
                 CHANNELS_CONFIG_FILE=$(getvalue "$1")
-                [ -z "$CHANNELS_CONFIG_FILE" ] && error_exit "--channels-config-file argument's value must be not empty."
+                [ -z "$CHANNELS_CONFIG_FILE" ] && die "--channels-config-file argument's value must be not empty."
                 case "$CHANNELS_CONFIG_FILE" in
                     /*) ;;
                     \~|\~/) CHANNELS_CONFIG_FILE="$HOME" ;;
-                    \~/*)   CHANNELS_CONFIG_FILE="${HOME}$(msg "$CHANNELS_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   CHANNELS_CONFIG_FILE="${HOME}$(printf "$CHANNELS_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
                     .|./)   CHANNELS_CONFIG_FILE="$PWD" ;;
                     *)      CHANNELS_CONFIG_FILE="$PWD/$CHANNELS_CONFIG_FILE" ;;
                 esac
                 ;;
             --resguard-config-file=*)
                 RESGUARD_CONFIG_FILE=$(getvalue "$1")
-                [ -z "$RESGUARD_CONFIG_FILE" ] && error_exit "--resguard-config-file argument's value must be not empty."
+                [ -z "$RESGUARD_CONFIG_FILE" ] && die "--resguard-config-file argument's value must be not empty."
                 case "$RESGUARD_CONFIG_FILE" in
                     /*) ;;
                     \~|\~/) RESGUARD_CONFIG_FILE="$HOME" ;;
-                    \~/*)   RESGUARD_CONFIG_FILE="${HOME}$(msg "$RESGUARD_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   RESGUARD_CONFIG_FILE="${HOME}$(printf "$RESGUARD_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
                     .|./)   RESGUARD_CONFIG_FILE="$PWD" ;;
                     *)      RESGUARD_CONFIG_FILE="$PWD/$RESGUARD_CONFIG_FILE" ;;
                 esac
                 ;;
             --keystore-file=*)
                 KEY_STORE_FILE_PATH=$(getvalue "$1")
-                [ -z "$KEY_STORE_FILE_PATH" ] && error_exit "--keystore-file argument's value must be not empty."
+                [ -z "$KEY_STORE_FILE_PATH" ] && die "--keystore-file argument's value must be not empty."
                 case "$KEY_STORE_FILE_PATH" in
                     /*) ;;
                     \~|\~/) KEY_STORE_FILE_PATH="$HOME" ;;
-                    \~/*)   KEY_STORE_FILE_PATH="${HOME}$(msg "$KEY_STORE_FILE_PATH" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   KEY_STORE_FILE_PATH="${HOME}$(printf "$KEY_STORE_FILE_PATH" | awk '{print(substr($0, 2))}')" ;;
                     .|./)   KEY_STORE_FILE_PATH="$PWD" ;;
                     *)      KEY_STORE_FILE_PATH="$PWD/$KEY_STORE_FILE_PATH" ;;
                 esac
                 ;;
             --keystore-password=*)
                 KEY_STORE_PASSWORD=$(getvalue "$1")
-                [ -z "$KEY_STORE_PASSWORD" ] && error_exit "--keystore-password argument's value must be not empty."
+                [ -z "$KEY_STORE_PASSWORD" ] && die "--keystore-password argument's value must be not empty."
                 ;;
             --keystore-key-alias=*)
                 KEY_STORE_KEY_ALIAS=$(getvalue "$1")
-                [ -z "$KEY_STORE_KEY_ALIAS" ] && error_exit "--keystore-key-alias argument's value must be not empty."
+                [ -z "$KEY_STORE_KEY_ALIAS" ] && die "--keystore-key-alias argument's value must be not empty."
                 ;;
             --keystore-key-password=*)
                 KEY_STORE_KEY_PASSWORD=$(getvalue "$1")
-                [ -z "$KEY_STORE_KEY_PASSWORD" ] && error_exit "--keystore-key-password argument's value must be not empty."
+                [ -z "$KEY_STORE_KEY_PASSWORD" ] && die "--keystore-key-password argument's value must be not empty."
                 ;;
             --project-dir=*)
                 PROJECT_DIR=$(getvalue "$1")
@@ -822,23 +830,23 @@ __build() {
                 case "$PROJECT_DIR" in
                     /*) ;;
                     \~|\~/) PROJECT_DIR="$HOME" ;;
-                    \~/*)   PROJECT_DIR="${HOME}$(msg "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   PROJECT_DIR="${HOME}$(printf "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
                     .|./)   PROJECT_DIR="$PWD" ;;
                     *)      PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
                 esac
                 ;;
             --output-dir=*)
                 OUTPUT_DIR=$(getvalue "$1")
-                [ -z "$OUTPUT_DIR" ] && error_exit "--output-dir argument's value must be not empty."
+                [ -z "$OUTPUT_DIR" ] && die "--output-dir argument's value must be not empty."
                 case "$OUTPUT_DIR" in
                     /*);;
                     \~|\~/) OUTPUT_DIR="$HOME" ;;
-                    \~/*)   OUTPUT_DIR="${HOME}$(msg "$OUTPUT_DIR" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   OUTPUT_DIR="${HOME}$(printf "$OUTPUT_DIR" | awk '{print(substr($0, 2))}')" ;;
                     .|./)   OUTPUT_DIR="$PWD" ;;
                     *)      OUTPUT_DIR="$PWD/$OUTPUT_DIR" ;;
                 esac
                 ;;
-            *)  error_exit "$1 : unrecognized argument."
+            *)  die "$1 : unrecognized argument."
         esac
         shift
     done
@@ -849,23 +857,23 @@ __build() {
     info "--jiagu       = $isJiaGu"
     info "--channels-gen= $isGenChannels"
     info "--channels-zip= $isZipChannels"
-    info "--install     = $needInstall\n"
-    info "OS            = $OS\n"
+    info "--install     = $needInstall"
+    info "OS            = $OS"
     info "TIMESTAMP_UNIX= $TIMESTAMP_UNIX"
-    info "TIMESTAMP_FORM= $TIMESTAMP_FORM\n"
+    info "TIMESTAMP_FORM= $TIMESTAMP_FORM"
      
     __check_JAVA_HOME
     __check_ANDROID_HOME
     
     if [ -z "$INPUT_APK_FILE" ] && [ -z "$PROJECT_DIR" ] ; then
         PROJECT_DIR="$PWD"
-        warn "missing --input-apk-file=FILE and --project-dir=DIR argument. so we use the default value [PROJECT_DIR=PWD=$PWD]\n"
+        warn "missing --input-apk-file=FILE and --project-dir=DIR argument. so we use the default value [PROJECT_DIR=PWD=$PWD]"
     fi
     
     if [ -n "$PROJECT_DIR" ] ; then
         __check_PROJECT_DIR
     else
-        info "INPUT_APK_FILE= $INPUT_APK_FILE\n"
+        info "INPUT_APK_FILE= $INPUT_APK_FILE"
         is_a_valid_apk_file "$INPUT_APK_FILE"
     fi
     
@@ -895,7 +903,7 @@ __build() {
     [ "$isGenChannels" = "true" ] && __walle && [ "$isZipChannels" = "true" ] && __zip
     [ "$needInstall"   = 'true' ] && __install
     
-    msg ""
+    echo
     success "All Done."
 }
 
@@ -910,7 +918,7 @@ show_keystore() {
             case "$PROJECT_DIR" in
                 /*) ;;
                 \~|\~/) PROJECT_DIR="$HOME" ;;
-                \~/*)   PROJECT_DIR="${HOME}$(msg "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
+                \~/*)   PROJECT_DIR="${HOME}$(printf "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
                 .|./)   PROJECT_DIR="$PWD" ;;
                 *)      PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
             esac
@@ -918,7 +926,7 @@ show_keystore() {
     
     [ -z "$PROJECT_DIR" ] && {
         PROJECT_DIR="$PWD"
-        warn "missing --project-dir=DIR argument. so we use the default value [PWD=$PWD].\n"
+        warn "missing --project-dir=DIR argument. so we use the default value [PWD=$PWD]."
     }
 
     __check_JAVA_HOME
@@ -937,15 +945,15 @@ show_version_of_a_apk_file() {
             case "$INPUT_APK_FILE" in
                 /*) ;;
                 \~|\~/) INPUT_APK_FILE="$HOME" ;;
-                \~/*)   INPUT_APK_FILE="${HOME}$(msg "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
+                \~/*)   INPUT_APK_FILE="${HOME}$(printf "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
                 .|./)   INPUT_APK_FILE="$PWD" ;;
                 *)      INPUT_APK_FILE="$PWD/$INPUT_APK_FILE" ;;
             esac
     esac
 
-    [ -z "$INPUT_APK_FILE" ] && error_exit "missing --input-apk-file=FILE argument."
+    [ -z "$INPUT_APK_FILE" ] && die "missing --input-apk-file=FILE argument."
     
-    info "INPUT_APK_FILE = $INPUT_APK_FILE\n"
+    info "INPUT_APK_FILE = $INPUT_APK_FILE"
 
     is_a_valid_apk_file "$INPUT_APK_FILE"
     __check_JAVA_HOME
@@ -993,6 +1001,7 @@ androidx build [ARGUMENT]...
         --app-name=VALUE        --set the app name, if this argument is not specified, the name of output directory is used.
         --environment=VALUE     --debug or release, if this argument is not specified, debug is used.
         --verbose | -v          --verbose output log.
+        --xtrace  | -x          --trace execution of commands
 EOF
     if [ -z "$1" ] ; then
         exit
@@ -1007,7 +1016,7 @@ main() {
             help
             ;;
         -V|--version|version)
-            msg "$VERSION"
+            echo "$VERSION"
             ;;
         build)
             shift

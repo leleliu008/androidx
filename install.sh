@@ -13,7 +13,7 @@ Color_Purple='\033[0;35m'       # Purple
 Color_Off='\033[0m'             # Reset
 
 msg() {
-    printf "%b\n" "$1"
+    printf "%b\n" "$*"
 }
 
 info() {
@@ -24,7 +24,7 @@ success() {
     msg "${Color_Green}[✔] $@${Color_Off}"
 }
 
-error_exit() {
+die() {
     msg "${Color_Red}🔥 $@${Color_Off}"
     exit 1
 }
@@ -49,11 +49,11 @@ main() {
     trap on_exit EXIT
     
     if command -v androidx ; then
-        error_exit "androidx is already installed."
+        die "androidx is already installed."
     fi
     
     if [ -d "$INSTALL_DIR" ] ; then
-        error_exit "androidx is already installed. in $INSTALL_DIR"
+        die "androidx is already installed. in $INSTALL_DIR"
     else
         if mkdir -p "$INSTALL_DIR" ; then
             IS_CREATED_BY_ME_INSTALL_DIR=true
@@ -68,13 +68,13 @@ main() {
         info "Downloading $URL"
         wget "$URL"
     else
-        error_exit "please install curl or wget utility."
+        die "please install curl or wget utility."
     fi
 
     if [ $? -eq 0 ] ; then
         info "Downloaded at $PWD/$FILE_NAME"
     else
-        error_exit "Download occured error."
+        die "Download occured error."
     fi
     
     info "Uncompressing $PWD/$FILE_NAME"
@@ -88,7 +88,7 @@ main() {
         chmod 444 zsh-completion/_androidx
         
         if [ -f "$DEST_LINK_BIN" ] ; then
-            error_exit "$DEST_LINK_BIN is already exist."
+            die "$DEST_LINK_BIN is already exist."
         else
             [ -d '/usr/local/bin' ] || mkdir -p /usr/local/bin
             ln -s "$INSTALL_DIR/bin/androidx" "$DEST_LINK_BIN" &&
@@ -96,7 +96,7 @@ main() {
         fi
         
         if [ -f "$DEST_LINK_ZSH_COMPLETION" ] ; then
-            error_exit "$DEST_LINK_ZSH_COMPLETION is already exist."
+            die "$DEST_LINK_ZSH_COMPLETION is already exist."
         else
             [ -d /usr/local/share/zsh/site-functions ] || mkdir -p /usr/local/share/zsh/site-functions
             ln -s "$INSTALL_DIR/zsh-completion/_androidx" "$DEST_LINK_ZSH_COMPLETION" &&
@@ -104,10 +104,10 @@ main() {
         fi
         
         SUCCESS=true
-        success "Installed success.\n"
+        success "Installed success."
         msg "${Color_Purple}Note${Color_Off} : I have provide a zsh-completion script for ${Color_Purple}androidx${Color_Off}. when you've typed ${Color_Purple}androidx${Color_Off} then type ${Color_Purple}TAB${Color_Off} key, it will auto complete the rest for you. to apply this feature, you may need to run the command ${Color_Purple}autoload -U compinit && compinit${Color_Off}"
     else
-        error_exit "tar vxf $FILE_NAME occured error."
+        die "tar vxf $FILE_NAME occured error."
     fi
 }
 

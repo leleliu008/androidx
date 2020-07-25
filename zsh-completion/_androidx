@@ -57,7 +57,8 @@ function _androidx() {
                                         '--keystore-key-alias=[set the key alias]: :()' \
                                         '--keystore-key-password=[set the password of the key alias]: :()' \
                                         '--install[install the final apk on connected device]' \
-                                        '(--verbose -v)'{--verbose,-v}'[verbose output log]'
+                                        '(--verbose -v)'{--verbose,-v}'[verbose output log]' \
+                                        '(--xtrace -x)'{--xtrace,-x}'[trace execution of commands]'
                                     ;;
                             esac
                             ;;
