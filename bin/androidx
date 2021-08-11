@@ -2421,6 +2421,12 @@ __inspect_android_sdk() {
             break
         }
     done
+
+    if [ "$VERBOSE" = true ] ; then
+        if command -v tree > /dev/null ; then
+            run tree "$ANDROID_HOME" -L 3
+        fi
+    fi
 }
 
 __inspect_android_project() {
