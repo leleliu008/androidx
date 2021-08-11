@@ -15,37 +15,54 @@ android project helper
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/leleliu008/androidx/master/install.sh)"
 ```
  
-## zsh-completion for androidx
-I have provide a zsh-completion script for `androidx`. when you've typed `androidx` then type `TAB` key, it will auto complete the rest for you.
-
-**Note**: to apply this feature, you may need to run the command `autoload -U compinit && compinit`
+## Install androidx via cURL
+```bash
+curl -LO https://raw.githubusercontent.com/leleliu008/androidx/master/bin/androidx
+chmod a+x androidx
+mv androidx /usr/local/bin/
+```
 
 ## androidx command usage
 *   print the help infomation of `androidx` command
-        
+
         androidx -h
         androidx --help
-        androidx help
-        
-*   print the version of `androidx` and `Android SDK`
-        
+
+*   print the version of `androidx`
+
         androidx -V
         androidx --version
-        androidx version
-        
+
+*   integrate `zsh-completion` script
+
+        androidx integrate zsh
+
+    I have provide a zsh-completion script for `androidx`. when you've typed `androidx` then type `TAB` key, it will auto complete the rest for you.
+
+    **Note**: to apply this feature, you may need to run the command `autoload -U compinit && compinit`
+
+
+*   upgrade this software
+
+        androidx upgrade-self
+
 *   show keystore's content of a android project
         
         androidx show keystore
-        androidx show keystore --project-dir=.
+        androidx show keystore /android/project/path
         
 *   show version info of a apk file
         
-        androidx show version --input-apk-file=~/xx.apk
+        androidx show version ~/xx.apk
         
-*   build the android project or process a apk file
+*   build the android project and do some extra works
         
         androidx build
-        androidx build --project-dir=. --environment=debug
-        androidx build --project-dir=. --environment=release --webp --redex --resguard --channels-gen --channels-zip --install
-        androidx build --input-apk-file=~/xx.apk --environment=release --webp --redex --resguard --channels-gen --channels-zip --install
+        androidx build --project-dir=. --build-type=debug
+        androidx build --project-dir=. --build-type=release --webp --redex --resguard --channels=zip --install
+        
+*   repack a given apk file
+        
+        androidx repack --input-file=~/xx.apk --build-type=debug
+        androidx repack --input-file=~/xx.apk --build-type=release --webp --redex --resguard --channels=zip --install
         

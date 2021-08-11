@@ -1,0 +1,49 @@
+name: ci workflow
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-16.04, ubuntu-18.04, ubuntu-20.04, macos-10.15]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      HOMEBREW_NO_INSTALL_CLEANUP: set
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/checkout@v2
+      with:
+        repository: 'leleliu008/Android-VideoPlayer'
+        path: 'Android-VideoPlayer'
+    - run:  bin/androidx --version
+    - run:  bin/androidx build --project-dir=./Android-VideoPlayer --build-type=release --webp --resguard --channels=zip
+
+  install_via_homebrew:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-16.04, ubuntu-18.04, ubuntu-20.04, macos-10.15]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      HOMEBREW_NO_INSTALL_CLEANUP: set
+
+    steps:
+    - run:  brew tap leleliu008/fpliu
+    - run:  brew install androidx
+    - uses: actions/checkout@v2
+      with:
+        repository: 'leleliu008/Android-VideoPlayer'
+        path: 'Android-VideoPlayer'
+    - run:  androidx --version
+    - run:  androidx build --project-dir=./Android-VideoPlayer --build-type=release --webp --resguard --channels=zip

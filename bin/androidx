@@ -1,52 +1,225 @@
 #!/bin/sh
 
-VERSION='0.1.0'
+# https://github.com/leleliu008/androidx
 
-Color_Red='\033[0;31m'          # Red
-Color_Green='\033[0;32m'        # Green
-Color_Yellow='\033[0;33m'       # Yellow
-Color_Blue='\033[0;34m'         # Blue
-Color_Purple='\033[0;35m'       # Purple
-Color_Off='\033[0m'             # Reset
 
-msg() {
+
+unset CURRENT_SCRIPT_DIR
+unset CURRENT_SCRIPT_FILENAME
+unset CURRENT_SCRIPT_FILEPATH
+
+CURRENT_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd) || exit 1
+CURRENT_SCRIPT_FILENAME=$(basename "$0")
+CURRENT_SCRIPT_FILEPATH="$CURRENT_SCRIPT_DIR/$CURRENT_SCRIPT_FILENAME"
+
+
+COLOR_RED='\033[0;31m'          # Red
+COLOR_GREEN='\033[0;32m'        # Green
+COLOR_YELLOW='\033[0;33m'       # Yellow
+COLOR_BLUE='\033[0;34m'         # Blue
+COLOR_PURPLE='\033[0;35m'       # Purple
+COLOR_OFF='\033[0m'             # Reset
+
+print() {
     printf "%b" "$*"
 }
 
 echo() {
-    msg "$@\n"
+    print "$*\n"
 }
 
 info() {
-    msg "${Color_Purple}$@\n${Color_Off}"
+    echo "$COLOR_PURPLE==>$COLOR_OFF $COLOR_GREEN$@$COLOR_OFF"
 }
 
 success() {
-    msg "${Color_Green}[✔] $@\n${Color_Off}"
+    print "${COLOR_GREEN}[✔] $*\n${COLOR_OFF}"
 }
 
 warn() {
-    msg "${Color_Yellow}🔥 $@\n${Color_Off}"
+    print "${COLOR_YELLOW}🔥  $*\n${COLOR_OFF}" >&2
 }
 
 error() {
-    msg "${Color_Red}[✘] $@\n${Color_Off}"
+    print "${COLOR_RED}[✘] $*\n${COLOR_OFF}" >&2
 }
 
 die() {
-    msg "${Color_Red}[✘] $@\n${Color_Off}"
+    print "${COLOR_RED}[✘] $*\n${COLOR_OFF}" >&2
     exit 1
+}
+
+# check if file exists
+# $1 FILEPATH
+file_exists() {
+    [ -n "$1" ] && [ -e "$1" ]
+}
+
+# check if command exists in filesystem
+# $1 command name or path
+command_exists_in_filesystem() {
+    case $1 in
+        */*) executable "$1" ;;
+        *)   command -v "$1" > /dev/null
+    esac
+}
+
+executable() {
+    file_exists "$1" && [ -x "$1" ]
+}
+
+die_if_file_is_not_exist() {
+    file_exists "$1" || die "$1 is not exists."
+}
+
+die_if_not_executable() {
+    executable "$1" || die "$1 is not executable."
+}
+
+step() {
+    STEP_NUM=$(expr ${STEP_NUM-0} + 1)
+    STEP_MESSAGE="$@"
+    echo
+    echo "${COLOR_PURPLE}=>> STEP ${STEP_NUM} : ${STEP_MESSAGE} ${COLOR_OFF}"
+}
+
+run() {
+    info "$*"
+    eval "$*"
+}
+
+list() {
+    for item in $@
+    do
+        echo "$item"
+    done
+}
+
+list_length() {
+    echo $#
+}
+
+shiftn() {
+    shift "$1" && shift && echo "$@"
 }
 
 sed_in_place() {
     if command -v gsed > /dev/null ; then
-        gsed -i "$1" "$2"
+        unset SED_IN_PLACE_ACTION
+        SED_IN_PLACE_ACTION="$1"
+        shift
+        # contains ' but not contains \'
+        if printf "$SED_IN_PLACE_ACTION" | hexdump -v -e '1/1 "%02X" " "' | grep -q 27 && ! printf "$SED_IN_PLACE_ACTION" | hexdump -v -e '1/1 "%02X" ""' | grep -q '5C 27' ; then
+            run gsed -i "\"$SED_IN_PLACE_ACTION\"" $@
+        else
+            run gsed -i "'$SED_IN_PLACE_ACTION'" $@
+        fi
     elif command -v sed  > /dev/null ; then
-        sed -i    "$1" "$2" 2> /dev/null ||
-        sed -i "" "$1" "$2"
+        if sed -i 's/a/b/g' $(mktemp) 2> /dev/null ; then
+            unset SED_IN_PLACE_ACTION
+            SED_IN_PLACE_ACTION="$1"
+            shift
+            if printf "$SED_IN_PLACE_ACTION" | hexdump -v -e '1/1 "%02X" " "' | grep -q 27 && ! printf "$SED_IN_PLACE_ACTION" | hexdump -v -e '1/1 "%02X" ""' | grep -q '5C 27' ; then
+                run sed -i "\"$SED_IN_PLACE_ACTION\"" $@
+            else
+                run sed -i "'$SED_IN_PLACE_ACTION'" $@
+            fi
+        else
+            unset SED_IN_PLACE_ACTION
+            SED_IN_PLACE_ACTION="$1"
+            shift
+            if printf "$SED_IN_PLACE_ACTION" | hexdump -v -e '1/1 "%02X" " "' | grep -q 27 && ! printf "$SED_IN_PLACE_ACTION" | hexdump -v -e '1/1 "%02X" ""' | grep -q '5C 27' ; then
+                run sed -i '""' "\"$SED_IN_PLACE_ACTION\"" $@
+            else
+                run sed -i '""' "'$SED_IN_PLACE_ACTION'" $@
+            fi
+        fi
     else
         die "please install sed utility."
     fi
+}
+
+getvalue() {
+    if [ $# -eq 0 ] ; then
+        cut -d= -f2
+    else
+        echo "$1" | cut -d= -f2
+    fi
+}
+
+trim() {
+    if [ $# -eq 0 ] ; then
+        sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//'
+    else
+        if [ -n "$*" ] ; then
+            echo "$*" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//'
+        fi
+    fi
+}
+
+tolower() {
+    if [ $# -eq 0 ] ; then
+        if command -v tr > /dev/null ; then
+            tr A-Z a-z
+        elif command -v  awk > /dev/null ; then
+            awk '{print(tolower($0))}'
+        elif command -v gawk > /dev/null ; then
+            gawk '{print(tolower($0))}'
+        else
+            die "please install GNU CoreUtils or awk."
+        fi
+    else
+        if [ -z "$*" ] ; then
+            return 0
+        fi
+        if command -v tr > /dev/null ; then
+            echo "$*" | tr A-Z a-z
+        elif command -v  awk > /dev/null ; then
+            echo "$*" | awk '{print(tolower($0))}'
+        elif command -v gawk > /dev/null ; then
+            echo "$*" | gawk '{print(tolower($0))}'
+        elif command -v python > /dev/null ; then
+            python  -c 'import sys; print(sys.argv[1].lower());' "$*"
+        elif command -v python3 > /dev/null ; then
+            python3 -c 'import sys; print(sys.argv[1].lower());' "$*"
+        elif command -v python2 > /dev/null ; then
+            python2 -c 'import sys; print(sys.argv[1].lower());' "$*"
+        elif command -v perl > /dev/null ; then
+            perl -e 'print @ARGV[0],"\n"' "$1"
+        elif command -v node > /dev/null ; then
+            node -e 'console.log(process.argv[2].toLowerCase())' - "$*"
+        else
+            die "please install GNU CoreUtils or awk."
+        fi
+    fi
+}
+
+nproc() {
+    if command nproc --version > /dev/null 2>&1 ; then
+        command nproc
+    elif test -f /proc/cpuinfo ; then
+        grep -c processor /proc/cpuinfo
+    elif command -v sysctl > /dev/null ; then
+        sysctl -n machdep.cpu.thread_count
+    else
+        echo 4
+    fi
+}
+
+own() {
+    if command -v awk > /dev/null ; then
+        ls -ld "$1" | awk '{print $3":"$4}'
+    else
+        ls -ld "$1" | cut -d ' ' -f4,6 | tr ' ' ':'
+    fi
+}
+
+is_integer () {
+    case "${1#[+-]}" in
+        (*[!0123456789]*) return 1 ;;
+        ('')              return 1 ;;
+        (*)               return 0 ;;
+    esac
 }
 
 format_unix_timestamp() {
@@ -54,40 +227,1992 @@ format_unix_timestamp() {
    date -d      "@$1" "$2"
 }
 
-getvalue() {
-    echo "$1" | cut -d= -f2
+# }}}
+##############################################################################
+# {{{ md5sum
+
+#examples:
+# printf ss | md5sum
+# cat FILE  | md5sum
+# md5sum < FILE
+md5sum() {
+    if [ $# -eq 0 ] ; then
+        if echo | command md5sum > /dev/null 2>&1 ; then
+             command md5sum | cut -d ' ' -f1
+        elif command -v openssl > /dev/null ; then
+             openssl md5 | rev | cut -d ' ' -f1 | rev
+        else
+            return 1
+        fi
+    else
+        if command -v openssl > /dev/null ; then
+             openssl md5    "$1" | cut -d ' ' -f2
+        elif echo | command md5sum > /dev/null 2>&1 ; then
+             command md5sum "$1" | cut -d ' ' -f1
+        else
+            die "please install openssl or GNU CoreUtils."
+        fi
+    fi
 }
 
-get_value_from_build_gradle() {
+# }}}
+##############################################################################
+# {{{ sha256sum
+
+#examples:
+# printf ss | sha256sum
+# cat FILE  | sha256sum
+# sha256sum < FILE
+sha256sum() {
+    if [ $# -eq 0 ] ; then
+        if echo | command sha256sum > /dev/null 2>&1 ; then
+             command sha256sum | cut -d ' ' -f1
+        elif command -v openssl > /dev/null ; then
+             openssl sha256 | rev | cut -d ' ' -f1 | rev
+        else
+            return 1
+        fi
+    else
+        die_if_file_is_not_exist "$1"
+        if command -v openssl > /dev/null ; then
+             openssl sha256    "$1" | cut -d ' ' -f2
+        elif echo | command sha256sum > /dev/null 2>&1 ; then
+             command sha256sum "$1" | cut -d ' ' -f1
+        else
+            die "please install openssl or GNU CoreUtils."
+        fi
+    fi
+}
+
+# $1 FILEPATH
+# $2 expect sha256sum
+file_exists_and_sha256sum_matched() {
+    die_if_file_is_not_exist "$1"
+    [ -z "$2" ] && die "please specify expected sha256sum."
+    [ "$(sha256sum $1)" = "$2" ]
+}
+
+# $1 FILEPATH
+# $2 expect sha256sum
+die_if_sha256sum_mismatch() {
+    file_exists_and_sha256sum_matched "$1" "$2" || die "sha256sum mismatch.\n    expect : $2\n    actual : $(sha256sum $1)"
+}
+
+# }}}
+##############################################################################
+# {{{ map
+
+# $1 map_name
+__map_name_ref() {
+    die_if_map_name_is_not_specified "$1"
+    printf "map_%s\n" "$(printf '%s' "$1" | md5sum)"
+}
+
+# $1 map_name
+# $2 key
+__map_key_ref() {
+    die_if_map_name_is_not_specified   "$1"
+    die_if_map_key__is_not_specified   "$2"
+    printf "%s_%s\n" "$(__map_name_ref "$1")" "$(printf '%s' "$2" | md5sum)"
+}
+
+# $1 map_name
+# $2 key
+map_contains() {
+    die_if_map_name_is_not_specified "$1"
+    die_if_map_key__is_not_specified "$2"
+    for item in $(eval echo \$$(__map_name_ref "$1"))
+    do
+        [ "$item" = "$2" ] && return 0
+    done
+}
+
+# $1 map_name
+# $2 key
+# $3 value
+map_set() {
+    die_if_map_name_is_not_specified "$1"
+    die_if_map_key__is_not_specified "$2"
+    if ! map_contains "$1" "$2" ; then
+        unset __MAP_NAME_REF__
+        __MAP_NAME_REF__="$(__map_name_ref "$1")"
+        __MAP_NAME_REF_VALUE__="$(eval echo \$$__MAP_NAME_REF__)"
+        eval "$__MAP_NAME_REF__=\"$__MAP_NAME_REF_VALUE__ $2\""
+    fi
+    eval "$(__map_key_ref "$1" "$2")=$3"
+}
+
+# $1 map_name
+# $2 key
+# output: value
+map_get() {
+    die_if_map_name_is_not_specified "$1"
+    die_if_map_key__is_not_specified "$2"
+    eval echo "\$$(__map_key_ref "$1" "$2")"
+}
+
+# $1 map_name
+# $2 key
+# output: value
+map_remove() {
+    die_if_map_name_is_not_specified "$1"
+    die_if_map_key__is_not_specified "$2"
+
+    unset __MAP_NAME_REF__
+    __MAP_NAME_REF__="$(__map_name_ref "$1")"
+
+    unset __MAP_KEYS__
+    __MAP_KEYS__="$(map_keys "$1")"
+
+    unset $__MAP_NAME_REF__
+
+    for item in $__MAP_KEYS__
+    do
+        if [ "$item" = "$2" ] ; then
+            continue
+        else
+            eval "$__MAP_NAME_REF__='$(eval echo \$$__MAP_NAME_REF__) $item'"
+        fi
+    done
+    eval "unset $(__map_key_ref "$1" "$2")"
+}
+
+# $1 map_name
+map_clear() {
+    die_if_map_name_is_not_specified "$1"
+
+    unset __MAP_NAME_REF__
+    __MAP_NAME_REF__="$(__map_name_ref "$1")"
+
+    for item in $(eval echo "\$$__MAP_NAME_REF__")
+    do
+        eval "unset $(__map_key_ref "$1" "$item")"
+    done
+    eval "unset $__MAP_NAME_REF__"
+}
+
+# $1 map_name
+# output: key list
+map_keys() {
+    die_if_map_name_is_not_specified "$1"
+    eval echo "\$$(__map_name_ref "$1")"
+}
+
+# $1 map_name
+# output: key list length
+map_size() {
+    die_if_map_name_is_not_specified "$1"
+    list_length $(map_keys "$1")
+}
+
+# $1 map_name
+die_if_map_name_is_not_specified() {
+    if [ -z "$1" ] ; then
+        die "please specify a map name."
+    fi
+}
+
+# $1 key
+die_if_map_key__is_not_specified() {
+    if [ -z "$1" ] ; then
+        die "please specify a map key."
+    fi
+}
+
+# }}}
+##############################################################################
+# {{{ fetch
+
+__get_available_fetch_tool() {
+    for tool in curl wget http lynx aria2c axel
+    do
+        if command_exists_in_filesystem "$tool" ; then
+            echo "$tool"
+            return 0
+        fi
+    done
+    return 1
+}
+
+__fetch_via_git() {
+    if [ -d "$FETCH_OUTPUT_PATH" ] ; then
+        run cd  "$FETCH_OUTPUT_PATH" || return 1
+        if      git rev-parse 2> /dev/null ; then
+            run git pull &&
+            run git submodule update --recursive
+        else
+            run cd .. &&
+            run rm -rf "$FETCH_OUTPUT_NAME" &&
+            run git clone --recursive "$FETCH_URL" "$FETCH_OUTPUT_NAME"
+        fi
+    else
+        if [ ! -d "$FETCH_OUTPUT_DIR" ] ; then
+            run install -d "$FETCH_OUTPUT_DIR" || return 1
+        fi
+        run cd "$FETCH_OUTPUT_DIR" || return 1
+        run git clone --recursive "$FETCH_URL" "$FETCH_OUTPUT_NAME"
+    fi
+}
+
+__fetch_archive_via_tools() {
+    if [ -f "$FETCH_OUTPUT_PATH" ] ; then
+        if [ -n "$FETCH_SHA256" ] ; then
+            if file_exists_and_sha256sum_matched "$FETCH_OUTPUT_PATH" "$FETCH_SHA256" ; then
+                success "$FETCH_OUTPUT_PATH already have been downloaded."
+                return 0
+            fi
+        fi
+        rm -f "$FETCH_OUTPUT_PATH"
+    fi
+
+    AVAILABLE_FETCH_TOOL=$(__get_available_fetch_tool)
+
+    if [ -z "$AVAILABLE_FETCH_TOOL" ] ; then
+        handle_dependency required command curl || return 1
+        if command_exists_in_filesystem curl ; then
+            AVAILABLE_FETCH_TOOL=curl
+        else
+            return 1
+        fi
+    fi
+
+    case $AVAILABLE_FETCH_TOOL in
+        curl)  run curl --fail --retry 20 --retry-delay 30 --location -o "$FETCH_OUTPUT_PATH" "'$FETCH_URL'" ;;
+        wget)  run wget --timeout=60 -O "$FETCH_OUTPUT_PATH" "'$FETCH_URL'" ;;
+        http)  run http --timeout=60 -o "$FETCH_OUTPUT_PATH" "'$FETCH_URL'" ;;
+        lynx)  run lynx -source "$FETCH_URL" > "\"$FETCH_OUTPUT_PATH\"" ;;
+        aria2c)run aria2c -d "$FETCH_OUTPUT_DIR" -o "$FETCH_OUTPUT_NAME" "'$FETCH_URL'" ;;
+        axel)  run axel -o "$FETCH_OUTPUT_PATH" "'$FETCH_URL'" ;;
+    esac
+
+    [ $? -eq 0 ] || return 1
+
+    if [ -n "$FETCH_SHA256" ] ; then
+        die_if_sha256sum_mismatch "$FETCH_OUTPUT_PATH" "$FETCH_SHA256"
+    fi
+}
+
+# fetch <URL> [--sha256=SHA256] <--output-path=PATH>
+# fetch <URL> [--sha256=SHA256] <--output-dir=DIR> <--output-name=NAME>
+# fetch <URL> [--sha256=SHA256] <--output-dir=DIR> [--output-name=NAME]
+# fetch <URL> [--sha256=SHA256] [--output-dir=DIR] <--output-name=NAME>
+fetch() {
+    unset FETCH_URL
+    unset FETCH_SHA256
+    unset FETCH_OUTPUT_DIR
+    unset FETCH_OUTPUT_NAME
+    unset FETCH_OUTPUT_PATH
+
+    if [ -z "$1" ] ; then
+        die "please specify a fetch url."
+    else
+        FETCH_URL="$1"
+    fi
+
+    shift
+
+    while [ -n "$1" ]
+    do
+        case $1 in
+            --sha256=*)
+                FETCH_SHA256=$(getvalue "$1")
+                ;;
+            --output-dir=*)
+                FETCH_OUTPUT_DIR=$(getvalue "$1")
+                if [ -z "$FETCH_OUTPUT_DIR" ] ; then
+                    die "--output-dir argument's value must be not empty."
+                fi
+                ;;
+            --output-name=*)
+                FETCH_OUTPUT_NAME=$(getvalue "$1")
+                if [ -z "$FETCH_OUTPUT_NAME" ] ; then
+                    die "--output-name argument's value must be not empty."
+                fi
+                ;;
+            --output-path=*)
+                FETCH_OUTPUT_PATH=$(getvalue "$1")
+                if [ -z "$FETCH_OUTPUT_PATH" ] ; then
+                    die "--output-path argument's value must be not empty."
+                fi
+        esac
+        shift
+    done
+
+    if [ -z "$FETCH_OUTPUT_PATH" ] ; then
+        [ -z "$FETCH_OUTPUT_DIR" ]  && FETCH_OUTPUT_DIR="$PWD"
+        [ -z "$FETCH_OUTPUT_NAME" ] && FETCH_OUTPUT_NAME=$(basename "$FETCH_URL")
+
+        FETCH_OUTPUT_PATH="$FETCH_OUTPUT_DIR/$FETCH_OUTPUT_NAME"
+    else
+        FETCH_OUTPUT_DIR="$(dirname $FETCH_OUTPUT_PATH)"
+        FETCH_OUTPUT_NAME="$(basename $FETCH_OUTPUT_PATH)"
+    fi
+
+    if [ ! -d "$FETCH_OUTPUT_DIR" ] ; then
+        run install -d "$FETCH_OUTPUT_DIR"
+    fi
+
+    case $FETCH_URL in
+        *.git) __fetch_via_git ;;
+        *)     __fetch_archive_via_tools ;;
+    esac
+}
+
+# }}}
+##############################################################################
+# {{{ __upgrade_self
+
+# __upgrade_self <UPGRAGE_URL>
+__upgrade_self() {
+    set -e
+
+    unset CURRENT_SCRIPT_REALPATH
+
+    # if file exists and is a symbolic link
+    if [ -L "$CURRENT_SCRIPT_FILEPATH" ] ; then
+        # https://unix.stackexchange.com/questions/136494/whats-the-difference-between-realpath-and-readlink-f#:~:text=GNU%20coreutils%20introduced%20a%20realpath,in%20common%20with%20GNU%20readlink%20.
+        if command -v realpath > /dev/null ; then
+            CURRENT_SCRIPT_REALPATH=$(realpath $CURRENT_SCRIPT_FILEPATH)
+        elif command -v readlink > /dev/null && readlink -f xx > /dev/null 2>&1 ; then
+            CURRENT_SCRIPT_REALPATH=$(readlink -f $CURRENT_SCRIPT_FILEPATH)
+        else
+            handle_dependency required command realpath
+            CURRENT_SCRIPT_REALPATH=$(realpath $CURRENT_SCRIPT_FILEPATH)
+        fi
+    else
+        CURRENT_SCRIPT_REALPATH="$CURRENT_SCRIPT_FILEPATH"
+    fi
+
+    info "mktemp -d"
+    WORKING_DIR=$(mktemp -d)
+
+    run cd $WORKING_DIR
+
+    fetch "$1" --output-path="$WORKING_DIR/self"
+
+    __upgrade_self_exit() {
+        if [ -w "$CURRENT_SCRIPT_REALPATH" ] ; then
+            run      install -m 555 self "$CURRENT_SCRIPT_REALPATH"
+        else
+            run sudo install -m 555 self "$CURRENT_SCRIPT_REALPATH"
+        fi
+
+        run rm -rf $WORKING_DIR
+    }
+
+    trap __upgrade_self_exit EXIT
+}
+
+# }}}
+##############################################################################
+# {{{ __integrate_zsh_completions
+
+# __integrate_zsh_completions <ZSH_COMPLETIONS_SCRIPT_URL>
+__integrate_zsh_completions() {
+    set -e
+
+    ZSH_COMPLETIONS_SCRIPT_FILENAME="_$CURRENT_SCRIPT_FILENAME"
+    ZSH_COMPLETIONS_SCRIPT_OUT_DIR='/usr/local/share/zsh/site-functions'
+    ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH="$ZSH_COMPLETIONS_SCRIPT_OUT_DIR/$ZSH_COMPLETIONS_SCRIPT_FILENAME"
+
+    info "mktemp -d"
+    WORKING_DIR=$(mktemp -d)
+
+    run cd $WORKING_DIR
+
+    fetch "$1" --output-path="$WORKING_DIR/$ZSH_COMPLETIONS_SCRIPT_FILENAME"
+
+    if [ ! -d "$ZSH_COMPLETIONS_SCRIPT_OUT_DIR" ] ; then
+        run install -d "$ZSH_COMPLETIONS_SCRIPT_OUT_DIR"
+    fi
+
+    # if file exists and is a symbolic link
+    if [ -L "$ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH" ] ; then
+        # https://unix.stackexchange.com/questions/136494/whats-the-difference-between-realpath-and-readlink-f#:~:text=GNU%20coreutils%20introduced%20a%20realpath,in%20common%20with%20GNU%20readlink%20.
+        if command -v realpath > /dev/null ; then
+            ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH=$(realpath $ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH)
+        elif command -v readlink > /dev/null && readlink -f xx > /dev/null 2>&1 ; then
+            ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH=$(readlink -f $ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH)
+        else
+            handle_dependency required command realpath
+            ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH=$(realpath $ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH)
+        fi
+    fi
+
+    if [ -w "$ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH" ] ; then
+        run      install -m 644 "$ZSH_COMPLETIONS_SCRIPT_FILENAME" "$ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH"
+    else
+        run sudo install -m 644 "$ZSH_COMPLETIONS_SCRIPT_FILENAME" "$ZSH_COMPLETIONS_SCRIPT_OUT_FILEPATH"
+    fi
+
+    run rm -rf $WORKING_DIR
+
+    echo
+    warn "you need to run command ${COLOR_GREEN}autoload -U compinit && compinit${COLOR_OFF} ${COLOR_YELLOW}in zsh to make it work.${COLOR_OFF}"
+}
+
+# }}}
+##############################################################################
+# {{{ os
+
+__get_os_name_from_uname_a() {
+    if command -v uname > /dev/null ; then
+        unset V
+        V=$(uname -a | cut -d ' ' -f2)
+        case $V in
+            opensuse*) return 1 ;;
+            *-*) echo "$V" | cut -d- -f1 ;;
+            *)   return 1
+        esac
+    else
+        return 1
+    fi
+}
+
+__get_os_version_from_uname_a() {
+    if command -v uname > /dev/null ; then
+        unset V
+        V=$(uname -a | cut -d ' ' -f2)
+        case $V in
+            opensuse*) return 1 ;;
+            *-*) echo "$V" | cut -d- -f2 ;;
+            *)   return 1
+        esac
+    else
+        return 1
+    fi
+}
+
+# https://www.freedesktop.org/software/systemd/man/os-release.html
+__get_os_name_from_etc_os_release() {
+    if [ -f /etc/os-release ] ; then
+        unset F
+        F=$(mktemp) &&
+        cat /etc/os-release > "$F" &&
+        echo 'echo "$ID"'  >> "$F" &&
+        sh "$F"
+    else
+        return 1
+    fi
+}
+
+__get_os_version_from_etc_os_release() {
+    if [ -f /etc/os-release ] ; then
+        unset F
+        F=$(mktemp) &&
+        cat /etc/os-release > "$F" &&
+        echo 'echo "$VERSION_ID"'  >> "$F" && {
+            unset V
+            V=$(sh "$F")
+            if [ -z "$V" ] ; then
+                echo 'rolling'
+            else
+                echo "$V"
+            fi
+        }
+    else
+        return 1
+    fi
+}
+
+# https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-PDA/LSB-PDA/lsbrelease.html
+__get_os_name_from_lsb_release() {
+    if command -v lsb_release > /dev/null ; then
+        lsb_release --id | cut -f2
+    else
+        return 1
+    fi
+}
+
+__get_os_version_from_lsb_release() {
+    if command -v lsb_release > /dev/null ; then
+        lsb_release --release | cut -f2
+    else
+        return 1
+    fi
+}
+
+__get_os_name_from_getprop() {
+    if command -v getprop > /dev/null && command -v app_process > /dev/null ; then
+        echo 'android'
+    else
+        return 1
+    fi
+}
+
+__get_os_version_from_getprop() {
+    if command -v getprop > /dev/null ; then
+        getprop ro.build.version.release
+    else
+        return 1
+    fi
+}
+
+__get_os_arch_from_getprop() {
+    if command -v getprop > /dev/null ; then
+        getprop ro.product.cpu.abi
+    else
+        return 1
+    fi
+}
+
+__get_os_arch_from_uname() {
+    if command -v uname > /dev/null ; then
+        uname -m 2> /dev/null
+    else
+        return 1
+    fi
+}
+
+__get_os_arch_from_arch() {
+    if command -v arch > /dev/null ; then
+        arch
+    else
+        return 1
+    fi
+}
+
+os() {
+    if [ $# -eq 0 ] ; then
+        printf "current-machine-os-kind : %s\n" "$(os kind)"
+        printf "current-machine-os-type : %s\n" "$(os type)"
+        printf "current-machine-os-name : %s\n" "$(os name)"
+        printf "current-machine-os-vers : %s\n" "$(os vers)"
+        printf "current-machine-os-arch : %s\n" "$(os arch)"
+        printf "current-machine-os-libc : %s\n" "$(os libc)"
+    elif [ $# -eq 1 ] ; then
+        case $1 in
+            -h|--help)
+                cat <<'EOF'
+os -h | --help
+os -V | --version
+os kind
+os type
+os arch
+os libc
+os name
+os vers
+EOF
+                ;;
+            -V|--version) echo '2021.03.28.23' ;;
+            kind)
+                case $(uname | tr A-Z a-z) in
+                    msys*)    echo "windows" ;;
+                    mingw32*) echo "windows" ;;
+                    mingw64*) echo "windows" ;;
+                    cygwin*)  echo 'windows' ;;
+                    *)  uname | tr A-Z a-z
+                esac
+                ;;
+
+            type)
+                case $(uname | tr A-Z a-z) in
+                    msys*)    echo "msys"    ;;
+                    mingw32*) echo "mingw32" ;;
+                    mingw64*) echo "mingw64" ;;
+                    cygwin*)  echo 'cygwin'  ;;
+                    *)  uname | tr A-Z a-z
+                esac
+                ;;
+            name)
+                case $(os kind) in
+                    freebsd) echo 'FreeBSD' ;;
+                    openbsd) echo 'OpenBSD' ;;
+                    netbsd)  echo 'NetBSD'  ;;
+                    darwin)  sw_vers -productName ;;
+                    linux)
+                        __get_os_name_from_uname_a ||
+                        __get_os_name_from_etc_os_release ||
+                        __get_os_name_from_lsb_release
+                        ;;
+                    windows)
+                        systeminfo | grep 'OS Name:' | cut -d: -f2 | head -n 1 | sed 's/^[[:space:]]*//' ;;
+                    *)  uname | tr A-Z a-z
+                esac
+                ;;
+            arch)
+                __get_os_arch_from_uname ||
+                __get_os_arch_from_arch  ||
+                __get_os_arch_from_getprop
+                ;;
+            libc)
+                case $(os kind) in
+                    linux)
+                        # https://pubs.opengroup.org/onlinepubs/7908799/xcu/getconf.html
+                        if command -v getconf > /dev/null ; then
+                            if getconf GNU_LIBC_VERSION > /dev/null 2>&1 ; then
+                                echo glibc
+                                return 0
+                            fi
+                        fi
+                        if command -v ldd > /dev/null ; then
+                            if ldd --version 2>&1 | head -n 1 | grep -q GLIBC ; then
+                                echo glibc
+                                return 0
+                            fi
+                            if ldd --version 2>&1 | head -n 1 | grep -q musl ; then
+                                echo musl
+                                return 0
+                            fi
+                        fi
+                        return 1
+                esac
+                ;;
+            vers)
+                case $(os kind) in
+                    freebsd) freebsd-version ;;
+                    openbsd) uname -r ;;
+                    netbsd)  uname -r ;;
+                    darwin)  sw_vers -productVersion ;;
+                    linux)
+                        __get_os_version_from_uname_a ||
+                        __get_os_version_from_etc_os_release ||
+                        __get_os_version_from_lsb_release
+                        ;;
+                    windows)
+                        systeminfo | grep 'OS Version:' | cut -d: -f2 | head -n 1 | sed 's/^[[:space:]]*//' | cut -d ' ' -f1 ;;
+                esac
+                ;;
+            *)  echo "$1: not support item."; return 1
+        esac
+    else
+        echo "os command only support one item."; return 1
+    fi
+}
+
+# }}}
+##############################################################################
+# {{{ version
+
+version_of_python_module() {
+    unset PIP_COMMAND
+    PIP_COMMAND=$(command -v pip3 || command -v pip)
+    if [ -z "$PIP_COMMAND" ] ; then
+        die "can't found pip command."
+    else
+        "$PIP_COMMAND" show $1 | grep 'Version:' | cut -d ' ' -f2
+    fi
+}
+
+# retrive the version of a command from it's name or path
+version_of_command() {
+    case $(basename "$1") in
+        cmake) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+         make) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+        gmake) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+       rustup) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+        cargo) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+           go) "$1"   version | cut -d ' ' -f3 | cut -c3- ;;
+         tree) "$1" --version | cut -d ' ' -f2 | cut -c2- ;;
+   pkg-config) "$1" --version 2> /dev/null | head -n 1 ;;
+       m4|gm4) "$1" --version 2> /dev/null | head -n 1 | awk '{print($NF)}';;
+    autopoint) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+     automake|aclocal)
+               "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+     autoconf|autoheader|autom4te|autoreconf|autoscan|autoupdate|ifnames)
+               "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+      libtool) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+   libtoolize|glibtoolize)
+               "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+      objcopy) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f5 ;;
+         flex) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+        bison) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+         yacc) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+         nasm) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+         yasm) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+        patch) "$1" --version 2> /dev/null | head -n 1 | awk '{print($NF)}' ;;
+        gperf) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+        groff) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+     help2man) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+ sphinx-build) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+         file) "$1" --version 2> /dev/null | head -n 1 | cut -d '-' -f2 ;;
+      itstool) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+       protoc) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+        xmlto) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+      xmllint) ;;
+     xsltproc) ;;
+     rst2man|rst2man.py|rst2man-3|rst2man-3.6|rst2man-3.7|rst2man-3.8|rst2man-3.9)
+               "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+         gzip) "$1" --version 2>&1 | head -n 1 | awk '{print($NF)}' ;;
+         lzip) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+           xz) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+          zip) "$1" --version 2> /dev/null | sed -n '2p' | cut -d ' ' -f4 ;;
+        unzip) "$1" -v        2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+        bzip2) "$1" --help 2>&1 | head -n 1 | cut -d ' ' -f8 | cut -d ',' -f1 ;;
+          tar)
+            VERSION_MSG=$("$1" --version 2> /dev/null | head -n 1)
+            case $VERSION_MSG in
+                  tar*) echo "$VERSION_MSG" | cut -d ' ' -f4 ;;
+               bsdtar*) echo "$VERSION_MSG" | cut -d ' ' -f2 ;;
+            esac
+            ;;
+          git) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 ;;
+         curl) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+     awk|gawk) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f3 | tr , ' ' ;;
+     sed|gsed) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+         cpan) ;;
+         find) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+         diff) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+         grep) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 | cut -d '-' -f1 ;;
+         ruby) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+         perl) "$1" -v | sed -n '2p' | sed 's/.*v\([0-9]\.[0-9][0-9]\.[0-9]\).*/\1/' ;;
+    python|python2|python3)
+               "$1" --version 2>&1 | head -n 1 | cut -d ' ' -f2 ;;
+         pip)  "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+         pip3) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+         node) "$1" --version 2> /dev/null | head -n 1 | cut -d 'v' -f2 ;;
+          zsh) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
+         bash) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 | cut -d '(' -f1 ;;
+       base64) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+            *) "$1" --version 2> /dev/null | head -n 1
+    esac
+}
+
+# retrive the major part of the version of the given command
+# Note: the version of the given command must have form: major.minor.patch
+version_major_of_command() {
+    version_of_command "$1" | cut -d. -f1
+}
+
+# retrive the minor part of the version of the given command
+# Note: the version of the given command must have form: major.minor.patch
+version_minor_of_command() {
+    version_of_command "$1" | cut -d. -f2
+}
+
+# retrive the major part of the given version
+# Note: the given version must have form: major.minor.patch
+version_major_of_version() {
+    echo "$1" | cut -d. -f1
+}
+
+# retrive the minor part of the given version
+# Note: the given version must have form: major.minor.patch
+version_minor_of_version() {
+    echo "$1" | cut -d. -f2
+}
+
+version_sort() {
+    # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/sort.html
+    # https://man.netbsd.org/NetBSD-8.1/i386/sort.1
+    #
+    # sort: unrecognized option: V
+    # BusyBox v1.29.3 (2019-01-24 07:45:07 UTC) multi-call binary.
+    # Usage: sort [-nrugMcszbdfiokt] [-o FILE] [-k start[.offset][opts][,end[.offset][opts]] [-t CHAR] [FILE]...
+    if  echo | (sort -V > /dev/null 2>&1) ; then
+        echo "$@" | tr ' ' '\n' | sort -V
+    else
+        echo "$@" | tr ' ' '\n' | sort -t. -n -k1,1 -k2,2 -k3,3 -k4,4
+    fi
+}
+
+# check if match the condition
+#
+# condition:
+# eq  equal
+# ne  not equal
+# gt  greater than
+# lt  less than
+# ge  greater than or equal
+# le  less than or equal
+#
+# examples:
+# version_match 1.15.3 eq 1.16.0
+# version_match 1.15.3 lt 1.16.0
+# version_match 1.15.3 gt 1.16.0
+# version_match 1.15.3 le 1.16.0
+# version_match 1.15.3 ge 1.16.0
+version_match() {
+    case $2 in
+        eq)  [ "$1"  = "$3" ] ;;
+        ne)  [ "$1" != "$3" ] ;;
+        le)
+            [ "$1" = "$3" ] && return 0
+            [ "$1" = "$(version_sort "$1" "$3" | head -n 1)" ]
+            ;;
+        ge)
+            [ "$1" = "$3" ] && return 0
+            [ "$1" = "$(version_sort "$1" "$3" | tail -n 1)" ]
+            ;;
+        lt)
+            [ "$1" = "$3" ] && return 1
+            [ "$1" = "$(version_sort "$1" "$3" | head -n 1)" ]
+            ;;
+        gt)
+            [ "$1" = "$3" ] && return 1
+            [ "$1" = "$(version_sort "$1" "$3" | tail -n 1)" ]
+            ;;
+        *)  die "version_compare: $2: not supported operator."
+    esac
+}
+
+# check if the version of give installed command match the condition
+#
+# condition:
+# eq  equal
+# ne  not equal
+# gt  greater than
+# lt  less than
+# ge  greater than or equal
+# le  less than or equal
+#
+# examples:
+# command_exists_in_filesystem_and_version_matched automake eq 1.16.0
+# command_exists_in_filesystem_and_version_matched automake lt 1.16.0
+# command_exists_in_filesystem_and_version_matched automake gt 1.16.0
+# command_exists_in_filesystem_and_version_matched automake le 1.16.0
+# command_exists_in_filesystem_and_version_matched automake ge 1.16.0
+# command_exists_in_filesystem_and_version_matched automake
+command_exists_in_filesystem_and_version_matched() {
+    if command_exists_in_filesystem "$1" ; then
+        if [ "$NATIVE_OS_TYPE" = 'cygwin' ] ; then
+            case $(command -v "$1") in
+                /cygdrive/*) return 1
+            esac
+        fi
+        if [ $# -eq 3 ] ; then
+            version_match "$(version_of_command "$1")" "$2" "$3"
+        fi
+    else
+        return 1
+    fi
+}
+
+# }}}
+##############################################################################
+# {{{ package_manager
+
+# check if the version of give package match the condition
+#
+# condition:
+# eq  equal
+# ne  not equal
+# gt  greater than
+# lt  less than
+# ge  greater than or equal
+# le  less than or equal
+#
+# examples:
+# package_exists_and_version_matched apt automake eq 1.16.0
+# package_exists_and_version_matched apt automake lt 1.16.0
+# package_exists_and_version_matched apt automake gt 1.16.0
+# package_exists_and_version_matched apt automake le 1.16.0
+# package_exists_and_version_matched apt automake ge 1.16.0
+# package_exists_and_version_matched apt automake
+package_exists_in_repo_and_version_matched() {
+    if package_exists_in_repo "$1" "$2" ; then
+        if [ $# -eq 4 ] ; then
+            case $1 in
+                apt|yum|dnf) version_match "$(version_of_package "$1" "$2")" "$3" "$4" ;;
+                *)       return 0 ;;
+            esac
+        fi
+    else
+        return 1
+    fi
+}
+
+# check if the give package is in the give repo
+#
+# examples:
+# package_exists_in_repo apt automake
+package_exists_in_repo() {
+    case $1 in
+        apt) apt show "$2" > /dev/null 2>&1 ;;
+        yum) yum info "$2" > /dev/null 2>&1 ;;
+        dnf) dnf info "$2" > /dev/null 2>&1 ;;
+    esac
+}
+
+# get the version of the give package in the give repo
+#
+# examples:
+# version_of_package apt automake
+version_of_package() {
+    case $1 in
+        apt) apt show "$2" 2> /dev/null | grep 'Version: '      | head -n 1 | cut -d ' ' -f2 | cut -d- -f1 ;;
+        yum) yum info "$2" 2> /dev/null | grep 'Version     :'  | head -n 1 | cut -d : -f2 | sed 's/^[[:space:]]//' ;;
+        dnf) dnf info "$2" 2> /dev/null | grep 'Version      :' | head -n 1 | cut -d : -f2 | sed 's/^[[:space:]]//' ;;
+    esac
+}
+
+# }}}
+##############################################################################
+# {{{ get_XX_package_name_by_command_name
+
+# https://cygwin.com/packages/package_list.html
+get_choco_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc-g++' ;;
+       gmake) echo 'make' ;;
+         gm4) echo 'm4'    ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+    sphinx-build) echo 'python38-sphinx' ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_pkg_add_package_name_by_command_name() {
+    case $1 in
+          cc) echo 'gcc'   ;;
+         gm4) echo 'm4'    ;;
+        make) echo 'gmake' ;;
+        perl) echo 'perl5' ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+    pip3|pip) echo 'py3-pip' ;;
+    libtool|libtoolize|glibtool|glibtoolize)
+              echo "libtool" ;;
+    autoreconf|autoconf|autoreconf-2.69|autoconf-2.69)
+              echo "autoconf-2.69p3" ;;
+    automake|autoheader|automake-1.16|autoheader-1.16)
+            if [ "$NATIVE_OS_VERS" = '6.9' ] ; then
+                echo "automake-1.16.3"
+            else
+                echo "automake-1.16.2"
+            fi
+            ;;
+    autopoint) echo "gettext" ;;
+    pkg-config) echo "pkgconf" ;;
+        *) echo "$1"
+    esac
+}
+
+get_pkgin_package_name_by_command_name() {
+    case $1 in
+          cc) echo 'gcc'   ;;
+         gm4) echo 'm4'    ;;
+        make) echo 'gmake' ;;
+        perl) echo 'perl5' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+    pip3|pip) echo 'py38-pip'  ;;
+    python3)  echo 'python38' ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    pkg-config) echo "pkgconf"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_pkg_package_name_by_command_name() {
+    case $1 in
+          cc) echo 'gcc'   ;;
+         gm4) echo 'm4'    ;;
+        make) echo 'gmake' ;;
+        perl) echo 'perl5' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+    pip3|pip) echo 'py38-pip' ;;
+    libtool|libtoolize|glibtool|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    pkg-config) echo "pkgconf"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_emerge_package_name_by_command_name() {
+    case $1 in
+          cc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      xz)     echo 'xz-utils' ;;
+      rst2man|rst2html)
+              echo "docutils" ;;
+    sphinx-build)
+              echo "sphinx" ;;
+    pip3|pip) echo "dev-python/pip" ;;
+    libtool|libtoolize|glibtool|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    pkg-config) echo "pkgconf"  ;;
+        *)      echo "$1"
+    esac
+}
+
+__get_pacman_package_name_by_command_name() {
+    case $1 in
+          cc) echo 'gcc'      ;;
+         gm4) echo 'm4'       ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      rst2man|rst2html)
+              echo "python-docutils" ;;
+    sphinx-build)
+              echo "python-sphinx" ;;
+    pip3|pip) echo "python-pip" ;;
+    libtool|libtoolize|glibtool|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    pkg-config) echo "pkgconf"  ;;
+        *)      echo "$1"
+    esac
+}
+
+__mingw_w64_i686() {
+    if pacman -S -i "mingw-w64-i686-$1" > /dev/null 2>&1 ; then
+        echo "mingw-w64-i686-$1"
+    else
+        echo "$1"
+    fi
+}
+
+__mingw_w64_x86_64() {
+    if pacman -S -i "mingw-w64-x86_64-$1" > /dev/null 2>&1 ; then
+        echo "mingw-w64-x86_64-$1"
+    else
+        echo "$1"
+    fi
+}
+
+get_pacman_package_name_by_command_name() {
+    if [ "$1" = 'make' ] || [ "$1" = 'gmake' ] ; then
+        echo make
+    fi
+    case $NATIVE_OS_TYPE in
+        mingw32) __mingw_w64_i686   $(__get_pacman_package_name_by_command_name "$1") ;;
+        mingw64) __mingw_w64_x86_64 $(__get_pacman_package_name_by_command_name "$1") ;;
+        *) __get_pacman_package_name_by_command_name "$1"
+    esac
+}
+
+get_xbps_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      rst2man|rst2html)
+              echo "python3-docutils" ;;
+    pip|pip3) echo "python3-pip" ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    pkg-config) echo "pkgconf"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_apk_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc libc-dev' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      rst2man|rst2html)
+              echo "py3-docutils" ;;
+    sphinx-build)
+              echo "sphinx"  ;;
+    pip3|pip) echo 'py3-pip' ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    pkg-config) echo "pkgconf"  ;;
+        *) echo "$1"
+    esac
+}
+
+get_zypper_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      rst2man|rst2html)
+              echo "python3-docutils" ;;
+    sphinx-build)
+              echo "python3-Sphinx" ;;
+    pip3|pip) echo "python3-pip" ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    autopoint)  echo "gettext"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_dnf_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      rst2man|rst2html)
+              echo "python3-docutils" ;;
+    sphinx-build)
+              echo "python3-sphinx" ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_yum_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+    sphinx-build) echo "python-sphinx" ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_apt_get_package_name_by_command_name() {
+    get_apt_package_name_by_command_name $@
+}
+
+get_apt_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+        xz)   echo 'xz-utils' ;;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+      rst2man|rst2html)
+              echo "python3-docutils" ;;
+    sphinx-build)
+              echo "python3-sphinx" ;;
+    pip3|pip) echo "python3-pip" ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+        *)      echo "$1"
+    esac
+}
+
+get_brew_package_name_by_command_name() {
+    case $1 in
+      cc|gcc) echo 'gcc' ;;
+         gm4) echo 'm4'    ;;
+       gperf) echo 'gperf' ;;
+        gsed) echo 'gnu-sed'  ;;
+        find) echo 'findutils';;
+        diff) echo 'diffutils';;
+     objcopy) echo 'binutils' ;;
+    realpath) echo 'coreutils';;
+      protoc) echo 'protobuf' ;;
+      ps2pdf) echo "ghostscript" ;;
+     rst2man.py|rst2html.py)
+              echo "docutils" ;;
+    grpc_cpp_plugin)
+                echo "grpc" ;;
+    glibtool|libtoolize|glibtoolize)
+                echo "libtool"  ;;
+    autoreconf) echo "autoconf" ;;
+    autoheader) echo "automake" ;;
+    autopoint)  echo "gettext"  ;;
+    python|python3)
+                echo 'python@3.9' ;;
+        *)      echo "$1"
+    esac
+}
+
+get_pip3_package_name_by_command_name() {
+    get_pip_package_name_by_command_name $@
+}
+
+get_pip_package_name_by_command_name() {
+    case $1 in
+        sphinx-build) echo "sphinx"   ;;
+        rst2man.py)   echo "docutils" ;;
+    esac
+}
+
+# }}}
+##############################################################################
+# {{{ __get_available_package_manager_list
+
+__add_available_package_manager() {
+    if command_exists_in_filesystem "$1" ; then
+        if [ -z "$AVAILABLE_PACKAGE_MANAGER_LIST" ] ; then
+            AVAILABLE_PACKAGE_MANAGER_LIST="$2"
+        else
+            AVAILABLE_PACKAGE_MANAGER_LIST="$AVAILABLE_PACKAGE_MANAGER_LIST $2"
+        fi
+    fi
+}
+
+__get_available_package_manager_list() {
+    if [ -z "$AVAILABLE_PACKAGE_MANAGER_LIST" ] ; then
+        for pm in brew apt dnf zypper apk xbps-install emerge pacman choco pkg pkgin pkg_add
+        do
+            case $pm in
+                apt)
+                    if command_exists_in_filesystem apt && apt show apt > /dev/null 2>&1 ; then
+                        __add_available_package_manager apt apt
+                    else
+                        __add_available_package_manager apt-get apt-get
+                    fi
+                    ;;
+                dnf)
+                    if command_exists_in_filesystem dnf ; then
+                        __add_available_package_manager dnf dnf
+                    else
+                        __add_available_package_manager yum yum
+                    fi
+                    ;;
+                xbps-install)
+                    __add_available_package_manager xbps-install xbps
+                    ;;
+                *)  __add_available_package_manager "$pm" "$pm"
+            esac
+        done
+    fi
+    echo "$AVAILABLE_PACKAGE_MANAGER_LIST"
+}
+
+# }}}
+##############################################################################
+# {{{ __install_required
+
+# $1 package manager name
+# $2 package name
+# examples:
+# __install_package_via_package_manager apt make ge 3.80
+# __install_package_via_package_manager apt make
+__install_package_via_package_manager() {
+    [ -z "$2" ] && return 1
+
+    package_exists_in_repo_and_version_matched $@ || return 1
+
+    case $1 in
+        pip3)
+            case $NATIVE_OS_KIND in
+                *bsd|linux) run pip3 install --user -U "$2" ;;
+                *)          run pip3 install        -U "$2"
+            esac
+            ;;
+        pip)
+            case $NATIVE_OS_KIND in
+                *bsd|linux) run pip  install --user -U "$2" ;;
+                *)          run pip  install        -U "$2"
+            esac
+            ;;
+        brew)
+            if run brew install "$2" ; then
+                if [ "$(brew info --json=v2 "$2" | grep keg_only | sed 's/ //g' | cut -d: -f2 | sed 's/,//')" = 'true' ] ; then
+                    if [ -d "$(brew --prefix "$2")/bin" ] ; then
+                        export PATH="$(brew --prefix "$2")/bin:$PATH"
+                    fi
+                fi
+            else
+                return 1
+            fi
+            ;;
+        pkg)     run $sudo pkg install -y "$2" ;;
+        pkgin)   run $sudo pkgin -y install "$2" ;;
+        pkg_add) run $sudo pkg_add "$2" ;;
+        apt)     run $sudo apt     -y install "$2" ;;
+        apt-get) run $sudo apt-get -y install "$2" ;;
+        dnf)     run $sudo dnf -y install "$2" ;;
+        yum)     run $sudo yum -y install "$2" ;;
+        zypper)  run $sudo zypper install -y "$2" ;;
+        apk)     run $sudo apk add "$2" ;;
+        xbps)    run $sudo xbps-install -Sy "$2" ;;
+        emerge)  run $sudo emerge "$2" ;;
+        pacman)  run $sudo pacman -Syy --noconfirm && run $sudo pacman -S --noconfirm "$2" ;;
+        choco)   run choco install -y --source cygwin "$2" ;;
+    esac
+    echo
+}
+
+# $1 package manager name
+# $2 command name
+# examples:
+# __install_command_via_package_manager apt make ge 3.80
+# __install_command_via_package_manager apt make
+__install_command_via_package_manager() {
+    unset __PACKAGE_NAME__
+    __PACKAGE_NAME__="$(eval get_$(echo "$1" | tr - _)_package_name_by_command_name $2)"
+
+    [ -z "$__PACKAGE_NAME__" ] && return 1
+
+    package_exists_in_repo_and_version_matched "$1" "$__PACKAGE_NAME__" $3 $4 || return 1
+
+    print "🔥  ${COLOR_YELLOW}required command${COLOR_OFF} ${COLOR_GREEN}$(shiftn 1 $@)${COLOR_OFF}${COLOR_YELLOW}, but${COLOR_OFF} ${COLOR_GREEN}$2${COLOR_OFF} ${COLOR_YELLOW}command not found, try to install it via${COLOR_OFF} ${COLOR_GREEN}$1${COLOR_OFF}\n"
+
+    __install_package_via_package_manager "$1" "$__PACKAGE_NAME__" $3 $4
+}
+
+# examples:
+# __install_command_via_available_package_manager python3 ge 3.5
+# __install_command_via_available_package_manager make
+__install_command_via_available_package_manager() {
+    command_exists_in_filesystem_and_version_matched $@ && return 0
+ 
+    if [ -z "$AVAILABLE_PACKAGE_MANAGER_LIST" ] ; then
+        AVAILABLE_PACKAGE_MANAGER_LIST=$(__get_available_package_manager_list)
+        if [ -z "$AVAILABLE_PACKAGE_MANAGER_LIST" ] ; then
+            warn "no package manager found."
+            return 1
+        else
+            echo "    Found $(list_length $AVAILABLE_PACKAGE_MANAGER_LIST) package manager : ${COLOR_GREEN}$AVAILABLE_PACKAGE_MANAGER_LIST${COLOR_OFF}"
+        fi
+    fi
+    for pm in $AVAILABLE_PACKAGE_MANAGER_LIST
+    do
+        __install_command_via_package_manager "$pm" $@ && return 0
+    done
+    return 1
+}
+
+handle_dependency_from_url() {
+    case $1 in
+        *.zip)
+            handle_dependency required command unzip
+            ;;
+        *.tar.xz)
+            handle_dependency required command tar
+            handle_dependency required command xz
+            ;;
+        *.tar.gz)
+            handle_dependency required command tar
+            handle_dependency required command gzip
+            ;;
+        *.tar.lz)
+            handle_dependency required command tar
+            handle_dependency required command lzip
+            ;;
+        *.tar.bz2)
+            handle_dependency required command tar
+            handle_dependency required command bzip2
+            ;;
+        *.tgz)
+            handle_dependency required command tar
+            handle_dependency required command gzip
+            ;;
+        *.txz)
+            handle_dependency required command tar
+            handle_dependency required command xz
+    esac
+}
+
+get_suffix_from_filename() {
+    case $1 in
+        *.zip)     echo '.zip' ;;
+        *.tar.xz)  echo '.tar.xz' ;;
+        *.tar.gz)  echo '.tar.gz' ;;
+        *.tar.lz)  echo '.tar.lz' ;;
+        *.tar.bz2) echo '.tar.bz2' ;;
+        *.tgz)     echo '.tgz' ;;
+        *.txz)     echo '.txz' ;;
+    esac
+}
+
+# examples:
+# pkg-config ge 0.18
+# python3    ge 3.5
+# make
+__install_command_via_fetch_prebuild_binary() {
+    unset PREBUILD_BINARY_FETCH_URL
+    PREBUILD_BINARY_FETCH_URL=$(__get_prebuild_binary_fetch_url_by_command_name "$1")
+    if [ -z "$PREBUILD_BINARY_FETCH_URL" ] ; then
+        return 1
+    fi
+
+    handle_dependency_from_url "$PREBUILD_BINARY_FETCH_URL"
+
+    print "🔥  ${COLOR_YELLOW}required command${COLOR_OFF} ${COLOR_GREEN}$@${COLOR_OFF}${COLOR_YELLOW}, but${COLOR_OFF} ${COLOR_GREEN}$1${COLOR_OFF} ${COLOR_YELLOW}command not found, try to install it via${COLOR_OFF} ${COLOR_GREEN}fetch prebuild binary${COLOR_OFF}\n"
+
+    unset PREBUILD_BINARY_FETCH_URL
+    PREBUILD_BINARY_FETCH_URL=$(__get_prebuild_binary_fetch_url_by_command_name "$1")
+
+    unset PREBUILD_BINARY_FILENAME_PREFIX
+    unset PREBUILD_BINARY_FILENAME_SUFFIX
+    unset PREBUILD_BINARY_FILENAME
+    unset PREBUILD_BINARY_FILEPATH
+
+    PREBUILD_BINARY_FILENAME=$(basename "$PREBUILD_BINARY_FETCH_URL")
+    PREBUILD_BINARY_FILENAME_SUFFIX=$(get_suffix_from_filename "$PREBUILD_BINARY_FILENAME")
+    PREBUILD_BINARY_FILENAME_PREFIX=$(basename "$PREBUILD_BINARY_FILENAME" "$PREBUILD_BINARY_FILENAME_SUFFIX")
+
+    if [ -z "$PREBUILD_BINARY_INSTALL_PREFIX_DIR" ] ; then
+        PREBUILD_BINARY_INSTALL_PREFIX_DIR='/opt'
+    fi
+
+    unset PREBUILD_BINARY_INSTALL_DIR
+    PREBUILD_BINARY_INSTALL_DIR="$PREBUILD_BINARY_INSTALL_PREFIX_DIR/$PREBUILD_BINARY_FILENAME_PREFIX"
+
+    PREBUILD_BINARY_FILEPATH="$PREBUILD_BINARY_INSTALL_DIR/$PREBUILD_BINARY_FILENAME"
+
+    if [ -d "$PREBUILD_BINARY_INSTALL_PREFIX_DIR" ] ; then
+        if [ -d "$PREBUILD_BINARY_INSTALL_DIR" ] ; then
+            if [ -r "$PREBUILD_BINARY_INSTALL_DIR" ] && [ -w "$PREBUILD_BINARY_INSTALL_DIR" ] && [ -x "$PREBUILD_BINARY_INSTALL_DIR" ] ; then
+                rm -rf "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+                install -o $(whoami) -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+            else
+                sudo rm -rf "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+                sudo install -o $(whoami) -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+            fi
+        else
+            if [ -r "$PREBUILD_BINARY_INSTALL_PREFIX_DIR" ] && [ -w "$PREBUILD_BINARY_INSTALL_PREFIX_DIR" ] && [ -x "$PREBUILD_BINARY_INSTALL_PREFIX_DIR" ] ; then
+                     install -o $(whoami) -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+            else
+                sudo install -o $(whoami) -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+            fi
+        fi
+    else
+        if [ -r / ] && [ -w / ] && [ -x / ] ; then
+                 install -o $(whoami) -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+        else
+            sudo install -o $(whoami) -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1
+        fi
+    fi
+
+    fetch "$PREBUILD_BINARY_FETCH_URL" --output-dir="$PREBUILD_BINARY_INSTALL_DIR" --output-name="$PREBUILD_BINARY_FILENAME" || return 1
+
+    case $PREBUILD_BINARY_FILENAME_SUFFIX in
+        .zip)
+            run unzip  "$PREBUILD_BINARY_FILEPATH" -d "$PREBUILD_BINARY_INSTALL_DIR" || return 1 ;;
+        .tar.xz|.tar.gz|.tar.lz|.tar.bz2|.tgz|.txz|.tlz)
+            run tar xf "$PREBUILD_BINARY_FILEPATH" -C "$PREBUILD_BINARY_INSTALL_DIR" --strip-components 1 || return 1 ;;
+    esac
+
+    if [ -d "$PREBUILD_BINARY_INSTALL_DIR/bin" ] ; then
+        export PATH="$PREBUILD_BINARY_INSTALL_DIR/bin:$PATH"
+    fi
+
+    case $1 in
+        autoconf)
+            for xx in $(grep '/root/.zpkg/install.d/autoconf' -rl "$PREBUILD_BINARY_INSTALL_DIR")
+            do
+                sed_in_place "s|/root/.zpkg/install.d/autoconf|$PREBUILD_BINARY_INSTALL_DIR|" "$xx"
+            done
+            ;;
+    esac
+}
+
+# examples:
+# __get_prebuild_binary_fetch_url_by_command_name python3 ge 3.5
+# __get_prebuild_binary_fetch_url_by_command_name cmake
+__get_prebuild_binary_fetch_url_by_command_name() {
+    # https://github.com/leleliu008/python-prebuild
+    # https://cmake.org/download
+{
+    cat <<EOF
+python    |glibc|linux |x86_64|https://github.com/leleliu008/python-prebuild/releases/download/3.9.5/python-3.9.5-x86_64-linux-glibc.tar.xz
+python3   |glibc|linux |x86_64|https://github.com/leleliu008/python-prebuild/releases/download/3.9.5/python-3.9.5-x86_64-linux-glibc.tar.xz
+git       |glibc|linux |x86_64|https://github.com/leleliu008/git-prebuild/releases/download/2.30.2/git-2.30.2-x86_64-linux-glibc.tar.xz
+autoconf  |glibc|linux |x86_64|https://github.com/leleliu008/autoconf-prebuild/releases/download/2.69/autoconf-2.69-glibc-linux-x86_64.tar.gz
+autoreconf|glibc|linux |x86_64|https://github.com/leleliu008/autoconf-prebuild/releases/download/2.69/autoconf-2.69-glibc-linux-x86_64.tar.gz
+cmake     |glibc|linux |x86_64|https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.tar.gz
+cmake     |     |darwin|      |https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-macos-universal.tar.gz
+EOF
+} | while read LINE
+    do
+        LINE=$(echo "$LINE" | sed 's/[[:space:]]//g')
+
+        unset __PB_COMMAND__
+        unset __PB_OS_LIBC__
+        unset __PB_OS_KIND__
+        unset __PB_OS_ARCH__
+        unset __PB_URL__
+
+        __PB_COMMAND__=$(echo "$LINE" | cut -d '|' -f1)
+
+        if [ "$__PB_COMMAND__" != "$1" ] ; then
+            continue
+        fi
+
+        __PB_OS_LIBC__=$(echo "$LINE" | cut -d '|' -f2)
+
+        if [ -n "$__PB_OS_LIBC__" ] && [ "$__PB_OS_LIBC__" != "$NATIVE_OS_LIBC" ] ; then
+            continue
+        fi
+
+        __PB_OS_KIND__=$(echo "$LINE" | cut -d '|' -f3)
+
+        if [ "$__PB_OS_KIND__" != "$NATIVE_OS_KIND" ] ; then
+            continue
+        fi
+
+        __PB_OS_ARCH__=$(echo "$LINE" | cut -d '|' -f4)
+
+        if [ -n "$__PB_OS_ARCH__" ] && [ "$__PB_OS_ARCH__" != "$NATIVE_OS_ARCH" ] ; then
+            continue
+        fi
+
+        __PB_URL__=$(echo "$LINE" | cut -d '|' -f5)
+
+        echo "$__PB_URL__"
+    done
+}
+
+__install_command_via_run_install_script() {
+    case $1 in
+        rustup)
+            # https://www.rust-lang.org/tools/install
+
+            unset __RUSTUP_INSTALL_SCRIPT_RUN_SHELL__
+            __RUSTUP_INSTALL_SCRIPT_RUN_SHELL__=$(command -v bash || command -v zsh || command -v dash)
+            if [ -z "$__RUSTUP_INSTALL_SCRIPT_RUN_SHELL__" ] ; then
+                handle_dependency required command bash || return 1
+            fi
+            __RUSTUP_INSTALL_SCRIPT_RUN_SHELL__=$(command -v bash)
+            if [ -z "$__RUSTUP_INSTALL_SCRIPT_RUN_SHELL__" ] ; then
+                warn "install bash failed."
+                return 1
+            fi
+
+            print "🔥  ${COLOR_YELLOW}required command${COLOR_OFF} ${COLOR_GREEN}$1${COLOR_OFF}${COLOR_YELLOW}, but${COLOR_OFF} ${COLOR_GREEN}$1${COLOR_OFF} ${COLOR_YELLOW}command not found, try to install it via running install script.${COLOR_OFF}\n"
+
+            unset __RUSTUP_INSTALL_SCRIPT_DIR__
+            __RUSTUP_INSTALL_SCRIPT_DIR__=$(mktemp -d) || return 1
+            fetch 'https://sh.rustup.rs' --output-dir="$__RUSTUP_INSTALL_SCRIPT_DIR__" --output-name='rustup-init' || return 1
+
+            run "$__RUSTUP_INSTALL_SCRIPT_RUN_SHELL__ $__RUSTUP_INSTALL_SCRIPT_DIR__/rustup-init -y" || return 1
+
+            export CARGO_HOME=$HOME/.cargo
+            export PATH="$CARGO_HOME/bin:$PATH"
+            ;;
+        *)  return 1
+    esac
+}
+
+__install_command_via_pip() {
+    [ -z "$(get_pip3_package_name_by_command_name "$1")" ] && return 1
+
+    handle_dependency required command pip3:pip
+
+    (
+        unset __PIP_COMMAND__
+        __PIP_COMMAND__="$(command -v pip3.8)"
+
+        if [ -n "$__PIP_COMMAND__" ] && [ -d '/usr/local/bin' ] ; then
+            $sudo ln -sf "$__PIP_COMMAND__" /usr/local/bin/pip3
+        fi
+    )
+
+    if   command_exists_in_filesystem pip3 ; then
+        __install_package_via_package_manager pip3 "$(get_pip3_package_name_by_command_name "$1")"
+    elif command_exists_in_filesystem pip ; then
+        __install_package_via_package_manager pip  "$(get_pip3_package_name_by_command_name "$1")"
+    else
+        return 1
+    fi
+}
+
+# examples:
+# __install_command python3 ge 3.5
+# __install_command make
+__install_command() {
+    command_exists_in_filesystem_and_version_matched $@ && return 0
+
+    __install_command_via_run_install_script $@         && return 0
+    __install_command_via_pip $@                        && return 0
+    __install_command_via_available_package_manager $@  && return 0
+    __install_command_via_fetch_prebuild_binary $@      && return 0
+    return 1
+}
+
+# examples:
+# handle_dependency required command   pkg-config ge 0.18
+# handle_dependency required command   python     ge 3.5
+# handle_dependency required module.py libxml2    ge 2.19
+#
+# handle_dependency optional command   pkg-config ge 0.18
+# handle_dependency optional command   python     ge 3.5
+# handle_dependency optional module.py libxml2    ge 2.19
+handle_dependency() {
+    [ "$1" = 'required' ] || return 0
+
+    shift
+
+    case $1 in
+        command)
+            shift
+            case $1 in
+                *:*)
+                    for command in $(echo "$1" | tr ':' ' ')
+                    do
+                        if command_exists_in_filesystem_and_version_matched "$command" $2 $3 ; then
+                            map_set MAP_REQUIRED_DEPENDENCIES "$1" "$command"
+                            return 0
+                        fi
+                    done
+                    for command in $(echo "$1" | tr ':' ' ')
+                    do
+                        if __install_command "$command" $2 $3 ; then
+                            map_set MAP_REQUIRED_DEPENDENCIES "$1" "$command"
+                            return 0
+                        fi
+                    done
+                    return 1
+                    ;;
+                *)  __install_command $@
+            esac
+            ;;
+        module.py)
+            shift
+            python_module install "$1"
+            ;;
+        module.pl)
+            shift
+            perl_module install "$1"
+            ;;
+        *) die "$1 not support."
+    esac
+}
+
+__handle_required_dependencies() {
+    step "handle required dependencies"
+
+    for dependency in $REQUIRED_DEPENDENCY_LIST
+    do
+        handle_dependency $(__decode_dependency "$dependency") || return 1
+    done
+}
+
+# }}}
+##############################################################################
+# {{{ __printf_dependencies
+
+# examples:
+# __printf_dependency required command   pkg-config ge 0.18
+# __printf_dependency required command   python     ge 3.5
+# __printf_dependency required module.py libxml2    ge 2.19
+#
+# __printf_dependency optional command   pkg-config ge 0.18
+# __printf_dependency optional command   python     ge 3.5
+# __printf_dependency optional module.py libxml2    ge 2.19
+__printf_dependency() {
+    printf "%-10s %-15s %-2s %-10s %-10s %s\n" "$1" "$2" "$3" "$4" "$5" "$6"
+}
+
+# examples:
+# printf_dependency required command   pkg-config ge 0.18
+# printf_dependency required command   python     ge 3.5
+# printf_dependency required module.py libxml2    ge 2.19
+#
+# printf_dependency optional command   pkg-config ge 0.18
+# printf_dependency optional command   python     ge 3.5
+# printf_dependency optional module.py libxml2    ge 2.19
+printf_dependency() {
+    case $2 in
+        command)
+            case $3 in
+                *:*)
+                    if [ "$1" = 'required' ] ; then
+                        REQUIRED_ITEM="$(map_get MAP_REQUIRED_DEPENDENCIES "$3")"
+                        __printf_dependency "$2" "$REQUIRED_ITEM" "$4" "$5" "$(version_of_command $REQUIRED_ITEM)" "$(command -v $REQUIRED_ITEM)"
+                    else
+                        for item in $(echo "$3" | tr ':' ' ')
+                        do
+                            __printf_dependency "$2" "$item" "$4" "$5" "$(version_of_command $item)" "$(command -v $item)"
+                        done
+                    fi
+                    ;;
+                *)  __printf_dependency "$2" "$3" "$4" "$5" "$(version_of_command $3)" "$(command -v $3)"
+            esac
+            ;;
+        module.py)
+            __printf_dependency "$2" "$3" "$4" "$5" "$(python_module get version "$item")" "$(python_module get location "$item")"
+            ;;
+        module.pl)
+            __printf_dependency "$2" "$3" "$4" "$5" "$(perl_module get version "$item")" "$(perl_module get location "$item")"
+            ;;
+        *)  die "$2: type not support."
+    esac
+}
+
+__printf_required_dependencies() {
+    step "printf required dependencies"
+    if [ -z "$REQUIRED_DEPENDENCY_LIST" ] ; then
+        warn "no required dependencies."
+    else
+        __printf_dependency TYPE NAME OP EXPECT ACTUAL LOCATION
+        for dependency in $REQUIRED_DEPENDENCY_LIST
+        do
+            printf_dependency $(__decode_dependency "$dependency")
+        done
+    fi
+}
+
+__printf_optional_dependencies() {
+    step "printf optional dependencies"
+    if [ -z "$OPTIONAL_DEPENDENCY_LIST" ] ; then
+        warn "no optional dependencies."
+    else
+        __printf_dependency TYPE NAME OP EXPECT ACTUAL LOCATION
+        for dependency in $OPTIONAL_DEPENDENCY_LIST
+        do
+            printf_dependency $(__decode_dependency "$dependency")
+        done
+    fi
+}
+
+# }}}
+##############################################################################
+# {{{ python_module
+
+# examples:
+# python_module is  installed libxml2
+# python_module get version   libxml2
+# python_module get location  libxml2
+# python_module install       libxml2
+python_module() {
+    case $1 in
+        is)
+            [ $# -eq 3 ] || die "[python_module is] command accept 2 arguments."
+
+            handle_dependency required command python3:python3.9:python3.8:python3.7:python3.6:python3.5:python
+            handle_dependency required command pip3:pip3.9:pip3.8:pip3.7:pip3.6:pip3.5:pip
+
+            __PYTHON_COMMAND__=$(command -v python3 || command -v python3.9 || command -v python3.8 || command -v python3.7 || command -v python3.6 || command -v python3.5 || command -v python || echo python)
+            __PIP_COMMAND__=$(command -v pip3 || command -v pip3.9 || command -v pip3.8 || command -v pip3.7 || command -v pip3.6 || command -v pip3.5 || command -v pip || echo pip)
+
+            case $2 in
+                installed)  "$__PYTHON_COMMAND__" -c "import $3" 2> /dev/null ;;
+                *) die "python_module is $2: not support."
+            esac
+            ;;
+        get)
+            [ $# -eq 3 ] || die "[python_module get] command accept 2 arguments."
+
+            handle_dependency required command python3:python3.9:python3.8:python3.7:python3.6:python3.5:python
+            handle_dependency required command pip3:pip3.9:pip3.8:pip3.7:pip3.6:pip3.5:pip
+
+            __PYTHON_COMMAND__=$(command -v python3 || command -v python3.9 || command -v python3.8 || command -v python3.7 || command -v python3.6 || command -v python3.5 || command -v python || echo python)
+            __PIP_COMMAND__=$(command -v pip3 || command -v pip3.9 || command -v pip3.8 || command -v pip3.7 || command -v pip3.6 || command -v pip3.5 || command -v pip || echo pip)
+
+            case $2 in
+                version)  "$__PIP_COMMAND__" show "$3" 2> /dev/null | grep 'Version:'  | cut -d ' ' -f2 ;;
+                location) "$__PIP_COMMAND__" show "$3" 2> /dev/null | grep 'Location:' | cut -d ' ' -f2 ;;
+                *) die "python_module get $2: not support."
+            esac
+            ;;
+        install)
+            [ -z "$2" ] && die "please specify a python module name."
+            if ! python_module is installed "$2" ; then
+                warn "required python module ${COLOR_GREEN}$2${COLOR_OFF}, but ${COLOR_GREEN}$2${COLOR_OFF} python module not found, try to install it via ${COLOR_GREEN}$__PIP_COMMAND__${COLOR_OFF}"
+                run "$__PIP_COMMAND__" install -U pip  || return 1
+                run "$__PIP_COMMAND__" install -U "$2" || return 1
+            fi
+            ;;
+        *)  die "python_module $1: not support."
+    esac
+}
+
+# }}}
+##############################################################################
+# {{{ perl_module
+
+# examples:
+# perl_module is  installed libxml2
+# perl_module get version   libxml2
+# perl_module get location  libxml2
+# perl_module install       libxml2
+perl_module() {
+    case $1 in
+        is)
+            [ $# -eq 4 ] || die "perl_module command accept 4 arguments."
+            handle_dependency required command perl
+            case $2 in
+                installed)  perl -M"$3" -le 'print "installed"' > /dev/null 2>&1 ;;
+                *) die "perl_module is $2: not support."
+            esac
+            ;;
+        get)
+            ;;
+        install)
+            if ! perl_module is installed "$3" ; then
+                handle_dependency required command cpan:cpanm
+                if   command_exists_in_filesystem cpan  ; then
+                    cpan -i "$3"
+                elif command_exists_in_filesystem cpanm ; then
+                    cpanm "$3"
+                else
+                    die "no perl module installer found."
+                fi
+            fi
+            ;;
+        *)  die "perl_module $1: not support."
+    esac
+}
+
+# }}}
+##############################################################################
+# {{{ encode/decode dependency
+
+__encode_dependency() {
+    if [ $# -eq 0 ] ; then
+        tr ' ' '|'
+    else
+        printf "%s" "$*" | tr ' ' '|'
+    fi
+}
+
+__decode_dependency() {
+    if [ $# -eq 0 ] ; then
+        tr '|' ' '
+    else
+        printf "%s" "$*" | tr '|' ' '
+    fi
+}
+
+# }}}
+##############################################################################
+# {{{ regist dependency
+
+# regist dependency
+#
+# required this is a required dependency
+# optional this is a optional dependency
+#
+# command  this dependency is a command
+# python   this dependency is a python  module
+# python2  this dependency is a python2 module
+# python3  this dependency is a python3 module
+# perl     this dependency is a perl module
+#
+# gt VERSION
+# ge VERSION
+# lt VERSION
+# le VERSION
+# eq VERSION
+# ne VERSION
+#
+# examples:
+# regist_dependency required command pkg-config ge 0.18
+# regist_dependency required command python     ge 3.5
+# regist_dependency required python  libxml2    ge 2.19
+#
+# regist_dependency optional command pkg-config ge 0.18
+# regist_dependency optional command python     ge 3.5
+# regist_dependency optional python  libxml2    ge 2.19
+regist_dependency() {
+    case $1 in
+        required)
+            if [ -z "$REQUIRED_DEPENDENCY_LIST" ] ; then
+                REQUIRED_DEPENDENCY_LIST="$(__encode_dependency "$*")"
+            else
+                REQUIRED_DEPENDENCY_LIST="$REQUIRED_DEPENDENCY_LIST $(__encode_dependency "$*")"
+            fi
+            ;;
+        optional)
+            if [ -z "$OPTIONAL_DEPENDENCY_LIST" ] ; then
+                OPTIONAL_DEPENDENCY_LIST=$(__encode_dependency "$*")
+            else
+                OPTIONAL_DEPENDENCY_LIST="$OPTIONAL_DEPENDENCY_LIST $(__encode_dependency "$*")"
+            fi
+    esac
+}
+
+# }}}
+##############################################################################
+
+get_value_from_app_module_build_gradle() {
     grep "$1\s*=*\s*[\"|'].*[\"|']" "$GRADLE_APP_MODULE_BUILD_FILE" | sed "s@.*[\"|']\(.*\)[\"|'].*@\1@"
 }
 
-#xxx.apk 接上zipaligned变为xxx_zipaligned.apk
-#$1为原来的路径
-#$2为要追加的字符串
-append_filename() {
-    echo "$(dirname "$1")/$(basename "$1" .apk)_$2.apk"
-}
-
-is_a_valid_apk_file() {
-    [ -z "$1" ] && die "must provide a apk file path."
-    [ -f "$1" ] || die "$1 file is not exist."
+die_if_invalid_apk_file() {
+    [ -z "$1" ] && die "please specify a apk file path."
+    [ -f "$1" -o -L "$1" ] || die "$1: file is not exist."
     unzip -t "$1" > /dev/null || die "$1 is not a valid apk file."
-}
-
-__read_my_config_file() {
-    USER_LEVEL_CONFIG_FILE="$HOME/.androidx"
-    [ -f "$USER_LEVEL_CONFIG_FILE" ] && . "$USER_LEVEL_CONFIG_FILE"
-
-    PROJECT_LEVEL_CONFIG_FILE="$PROJECT_DIR/.androidx"
-    [ -f "$PROJECT_LEVEL_CONFIG_FILE" ] && . "$PROJECT_LEVEL_CONFIG_FILE"
 }
 
 __unzip() {
     if [ "$VERBOSE" = 'true' ] ; then
-        unzip $@
+        run unzip $@
     else
-        unzip -q $@
+        run unzip -q $@
     fi
 }
 
@@ -97,7 +2222,9 @@ __convert_to_webp_internal() {
     for imageFile in $imageFiles
     do
         if printf "$imageFile" | grep "\.9.png" > /dev/null ; then
-            info "$imageFile is 9 png, so not convert"
+            if [ "$VERBOSE" = 'true' ] ; then
+                echo "$imageFile is 9 png, so not convert"
+            fi
         else
             name=$(basename "$imageFile")
             if [ "$name" = "ic_launcher.png" ] ; then
@@ -120,19 +2247,17 @@ __convert_to_webp() {
     __convert_to_webp_internal "jpg"
 }
 
+# __webp xx.apk
 __webp() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    OUTPUT_APK_FILE="$(append_filename "$INPUT_APK_FILE" webped)"
-    UNZIP_DIR="$WORKING_DIR/webp"
-    
-    info "__webp start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-    info "      UNZIP_DIR = $UNZIP_DIR"
+    die_if_invalid_apk_file "$1"
       
-    __unzip "$INPUT_APK_FILE" -d "$UNZIP_DIR" && ( 
-        cd "$UNZIP_DIR" &&
+    __unzip "$1" -d "$WORKING_DIR/webp"
+
+    unset OUTPUT_APK_FILE
+    OUTPUT_APK_FILE="$(echo "${1%.apk}_webped.apk")"
+
+    (
+        cd "$WORKING_DIR/webp" &&
         rm -rf META-INF && 
         rm -rf res/layout-watch-v20 && 
         rm -rf res/drawable-watch-v20 && 
@@ -142,318 +2267,139 @@ __webp() {
         rm -rf res/drawable-ldrtl-xxhdpi-v17 && 
         rm -rf res/drawable-ldrtl-xxxhdpi-v17 &&
         __convert_to_webp &&
-        7za a -tzip -mx9 "$OUTPUT_APK_FILE" .
+        run 7za a -tzip -mx9 "$OUTPUT_APK_FILE" .
     )
-    
-    if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__webp success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__webp failed."
-    fi
 }
 
+# __redex xx.apk
 __redex() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    OUTPUT_APK_FILE=$(append_filename "$INPUT_APK_FILE" redexed)
-    
-    info "__redex start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-    
-    redex "$INPUT_APK_FILE" -o "$OUTPUT_APK_FILE"
-    
-    if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__redex success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__redex failed."
-    fi
+    die_if_invalid_apk_file "$1"
+
+    unset OUTPUT_APK_FILE
+    OUTPUT_APK_FILE="$(echo "${1%.apk}_redexed.apk")"
+
+    run redex "$1" -o "$OUTPUT_APK_FILE"
 }
 
+# __resguard xx.apk
 __resguard() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    OUTPUT_APK_FILE="$(append_filename "$INPUT_APK_FILE" resguard)"
-    
-    info "__resguard start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
+    die_if_invalid_apk_file "$1"
+
+    unset OUTPUT_APK_FILE
+    OUTPUT_APK_FILE="$(echo "${1%.apk}_resguard.apk")"
      
-    andresguard "$INPUT_APK_FILE" \
+    run andresguard "$1" \
         -config "$RESGUARD_CONFIG_FILE" \
         -out "$WORKING_DIR/resguard" \
         -finalApkPath "$OUTPUT_APK_FILE" \
         -signatureType v2 \
-        -signature "$KEY_STORE_FILE_PATH" "$KEY_STORE_PASSWORD" "$KEY_STORE_KEY_PASSWORD" "$KEY_STORE_KEY_ALIAS"
-
-    if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__resguard success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__resguard failed."
-    fi
+        -signature "$KEY_STORE_FILE_PATH" "$KEY_STORE_FILE_PASSWORD" "$KEY_STORE_KEY_PASSWORD" "$KEY_STORE_KEY_ALIAS"
 }
 
+# __jiagu xx.apk
 __jiagu() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    info "__jiagu start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-     
+    die_if_invalid_apk_file "$1"
+
     #使用360账户登录
+    unset outputMessage
     outputMessage=$(360jiagubao -login "$QIHU360_USERNAME" "$QIHU360_PASSWORD" | tail -n 1)
     if printf "$outputMessage" | grep "succe" ; then
         success "360jiagubao $outputMessage"
     else
-        info "QIHU360_PASSWORD = $QIHU360_USERNAME"
-        info "QIHU360_PASSWORD = $QIHU360_PASSWORD"
+        if [ "$VERBOSE" = true ] ; then
+            echo "QIHU360_PASSWORD = $QIHU360_USERNAME"
+            echo "QIHU360_PASSWORD = $QIHU360_PASSWORD"
+        fi
         die "360jiagubao $outputMessage"
     fi
-    
-    outputMessage=""
-    
+
     #导入签名信息
-    outputMessage=$(360jiagubao -importsign "$KEY_STORE_FILE_PATH" "$KEY_STORE_PASSWORD" "$KEY_STORE_KEY_ALIAS" "$KEY_STORE_KEY_PASSWORD" | tail -n 1)
+    unset outputMessage
+    outputMessage=$(360jiagubao -importsign "$KEY_STORE_FILE_PATH" "$KEY_STORE_FILE_PASSWORD" "$KEY_STORE_KEY_ALIAS" "$KEY_STORE_KEY_PASSWORD" | tail -n 1)
     if printf "$outputMessage" | grep "succe" ; then
         success "360jiagubao $outputMessage"
     else
         die "360jiagubao $outputMessage"
     fi
-    
+
     #加固，并进行v1签名
-    360jiagubao -jiagu "$INPUT_APK_FILE" "$WORKING_DIR" -autosign || die "__jiagu failed!"
-    
+    360jiagubao -jiagu "$1" "$WORKING_DIR" -autosign || die "__jiagu failed!"
+
+    unset OUTPUT_APK_FILE
     OUTPUT_APK_FILE=$(find "$WORKING_DIR" -name "*_jiagu_sign.apk" | head -n 1)
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-    
+
     if [ -f "$OUTPUT_APK_FILE" ] ; then
         success "__jiagu success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
     else
         die "__jiagu failed."
     fi
 }
 
-# 删除apk中的签名信息
-# $1 是apk的路径
+# __sign_v1_remove xx.apk
 __sign_v1_remove() {
-    is_a_valid_apk_file "$1"
+    die_if_invalid_apk_file "$1"
     
-    aapt r "$1" META-INF/CERT.SF
-    aapt r "$1" META-INF/CERT.RSA
-    aapt r "$1" META-INF/MANIFEST.MF
+    run aapt r "$1" META-INF/CERT.SF     || true
+    run aapt r "$1" META-INF/CERT.RSA    || true
+    run aapt r "$1" META-INF/MANIFEST.MF || true
 }
 
+# __sign_v1 xx.apk
 __sign_v1() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
+    die_if_invalid_apk_file "$1"
 
-    OUTPUT_APK_FILE="$(append_filename "$INPUT_APK_FILE" v1signed)"
-    
-    info "__sign_v1 start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
+    __sign_v1_remove "$1"
 
-    __sign_v1_remove "$INPUT_APK_FILE"
-    
-    if [ "$VERBOSE" = 'true' ] ; then
-        jarsigner -verbose -keystore "$KEY_STORE_FILE_PATH" -storepass "$KEY_STORE_PASSWORD" -digestalg SHA-256 -sigalg SHA256withRSA -sigfile CERT -signedjar "$OUTPUT_APK_FILE" "$INPUT_APK_FILE" "$KEY_STORE_KEY_ALIAS"
-    else
-        jarsigner          -keystore "$KEY_STORE_FILE_PATH" -storepass "$KEY_STORE_PASSWORD" -digestalg SHA-256 -sigalg SHA256withRSA -sigfile CERT -signedjar "$OUTPUT_APK_FILE" "$INPUT_APK_FILE" "$KEY_STORE_KEY_ALIAS"
-    fi
-
-    if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__sign_v1 success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__sign_v1 failed."
-    fi
-}
-
-__sign_v2() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-
-    OUTPUT_APK_FILE="$(append_filename "$INPUT_APK_FILE" v2signed)"
-    
-    info "__sign_v2 start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-     
-    apksigner sign --ks "$KEY_STORE_FILE_PATH" --ks-pass pass:"$KEY_STORE_PASSWORD" --ks-key-alias "$KEY_STORE_KEY_ALIAS" --key-pass pass:"$KEY_STORE_PASSWORD" --out "$OUTPUT_APK_FILE" "$INPUT_APK_FILE" 
-    
-    if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__sign_v2 success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__sign_v2 failed."
-    fi
-}
-
-__sign_v2_verify() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    info "__sign_v2_verify start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    
-    apksigner verify -verbose "$INPUT_APK_FILE"
-
-    if [ $? -eq 0 ] ; then
-        success "__sign_v2_verify success."
-    else
-        die "__sign_v2_verify failed."
-    fi
-}
-
-__zipalign() {
-    OUTPUT_APK_FILE="$(append_filename "$INPUT_APK_FILE" aligned)"
-    
-    info "__zipalign start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-    
-    if [ "$VERBOSE" = 'true' ] ; then
-        zipalign -v -f 4 "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
-    else
-        zipalign    -f 4 "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
-    fi
-    
-    if [ -f "$OUTPUT_APK_FILE" ] ; then
-        success "__zipalign success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__zipalign failed."
-    fi
-}
-
-__copy_to_working_dir() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    WORKING_DIR=$(mktemp -d)
-    OUTPUT_APK_FILE="${WORKING_DIR}/input.apk"
-    
-    info "__copy_to_working_dir start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-    info "WORKING_DIR     = $WORKING_DIR"
-    
-    cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
-    
-    if [ $? -eq 0 ] ; then
-        success "__copy_to_working_dir success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__copy_to_working_dir failed."
-    fi
-}
-
-__copy_to_output_dir() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    OUTPUT_APK_FILE="${OUTPUT_DIR}/${APP_NAME}_${APP_VERSION_NAME}_${TIMESTAMP_FORM}_${ENVIRONMENT}.apk"
-    
-    info "__copy_to_output_dir start-->"
-    info " INPUT_APK_FILE = $INPUT_APK_FILE"
-    info "OUTPUT_APK_FILE = $OUTPUT_APK_FILE"
-    info "OUTPUT_DIR      = $OUTPUT_DIR"
-    
-    cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
-    
-    if [ $? -eq 0 ] ; then
-        success "__copy_to_output_dir success."
-        INPUT_APK_FILE="$OUTPUT_APK_FILE"
-    else
-        die "__copy_to_output_dir failed."
-    fi
-}
-
-__walle() {
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    
-    CHANNELS_OUT_DIR="$(basename $INPUT_APK_FILE .apk)"
-    
-    info "__walle start-->"
-    info " INPUT_APK_FILE      = $INPUT_APK_FILE"
-    info "CHANNELS_OUT_DIR     = $OUTPUT_DIR/$CHANNELS_OUT_DIR"
-    info "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE"
-    
-    walle batch -f "$CHANNELS_CONFIG_FILE" "$INPUT_APK_FILE" "$OUTPUT_DIR/$CHANNELS_OUT_DIR"
-    
-    if [ $? -eq 0 ] ; then
-        success "__walle success."
-    else
-        die "__walle failed."
-    fi
-}
-
-__zip() {
-    OUTPUT_ZIP_FILE="$OUTPUT_DIR/${CHANNELS_OUT_DIR}.zip"
-
-    info "__zip start-->"
-    
-    cd "$OUTPUT_DIR" &&
-    zip "$OUTPUT_ZIP_FILE" ${CHANNELS_OUT_DIR}/* &&
-    
-    if [ $? -eq 0 ] ; then
-        info "OUTPUT_ZIP_FILE = $(du -h "$OUTPUT_ZIP_FILE" | awk '{print $2"   "$1}')"
-        success "__zip success."
-    else
-        die "__zip failed."
-    fi
-}
-
-__install() {
-    info "Installing $INPUT_APK_FILE ..." &&
-    adb kill-server &&
-    adb install -r -t "$INPUT_APK_FILE"
-}
-
-__unset() {
-    unset KEY_STORE_FILE_PATH
-    unset KEY_STORE_PASSWORD
-    unset KEY_STORE_KEY_PASSWORD
-    unset KEY_STORE_KEY_ALIAS
-
-    unset QIHU360_USERNAME
-    unset QIHU360_PASSWORD
-    
-    unset RESGUARD_CONFIG_FILE
-    
-    unset CHANNELS_CONFIG_FILE
-    unset CHANNELS_OUT_DIR
-
-    unset APP_NAME
-    unset APP_VERSION_NAME
-    unset APP_PACKAGE_NAME
-   
-    unset PROJECT_DIR
-    unset WORKING_DIR
-    unset OUTPUT_DIR 
-    
-    unset ENVIRONMENT
-        
-    unset INPUT_APK_FILE
     unset OUTPUT_APK_FILE
-
-    unset isWebp
-    unset isReDex
-    unset isResGuard
-    unset isJiaGu
-    unset isGenChannels
-    unset isZipChannels
-    unset needInstall
-
-    unset VERBOSE
+    OUTPUT_APK_FILE="$(echo "${1%.apk}_v1signed.apk")"
+    
+    if [ "$VERBOSE" = 'true' ] ; then
+        run jarsigner -verbose -keystore "$KEY_STORE_FILE_PATH" -storepass "$KEY_STORE_FILE_PASSWORD" -digestalg SHA-256 -sigalg SHA256withRSA -sigfile CERT -signedjar "$OUTPUT_APK_FILE" "$1" "$KEY_STORE_KEY_ALIAS"
+    else
+        run jarsigner          -keystore "$KEY_STORE_FILE_PATH" -storepass "$KEY_STORE_FILE_PASSWORD" -digestalg SHA-256 -sigalg SHA256withRSA -sigfile CERT -signedjar "$OUTPUT_APK_FILE" "$1" "$KEY_STORE_KEY_ALIAS"
+    fi
 }
 
-__check_JAVA_HOME() {
+# __sign_v2 xx.apk
+__sign_v2() {
+    die_if_invalid_apk_file "$1"
+
+    unset OUTPUT_APK_FILE
+    OUTPUT_APK_FILE="$(echo "${1%.apk}_v2signed.apk")"
+
+    run apksigner sign --ks "$KEY_STORE_FILE_PATH" --ks-pass pass:"$KEY_STORE_FILE_PASSWORD" --ks-key-alias "$KEY_STORE_KEY_ALIAS" --key-pass pass:"$KEY_STORE_FILE_PASSWORD" --out "$OUTPUT_APK_FILE" "$1"
+}
+
+# __sign_v2_verify xx.apk
+__sign_v2_verify() {
+    die_if_invalid_apk_file       "$1"
+    run apksigner verify -verbose "$1"
+}
+
+# __zipalign xx.apk
+__zipalign() {
+    die_if_invalid_apk_file "$1"
+
+    unset OUTPUT_APK_FILE
+    OUTPUT_APK_FILE="$(echo "${1%.apk}_aligned.apk")"
+
+    if [ "$VERBOSE" = 'true' ] ; then
+        run zipalign -v -f 4 "$1" "$OUTPUT_APK_FILE"
+    else
+        run zipalign    -f 4 "$1" "$OUTPUT_APK_FILE"
+    fi
+}
+
+__inspect_jdk() {
+    # https://docs.oracle.com/cd/E19182-01/820-7851/inst_cli_jdk_javahome_t/
     [ -z "$JAVA_HOME" ] && die "JAVA_HOME environment variable is not set."
     [ -d "$JAVA_HOME" ] || die "JAVA_HOME=$JAVA_HOME directory is not exist."
     [ -d "$JAVA_HOME/bin" ] || die "$JAVA_HOME/bin directory is not exist."
     export PATH="$JAVA_HOME/bin:$PATH"
 }
 
-__check_ANDROID_HOME() {
+__inspect_android_sdk() {
+    # https://developer.android.google.cn/studio/command-line/variables
     [ -z "$ANDROID_HOME" ] && die "ANDROID_HOME environment variable is not set."
     [ -d "$ANDROID_HOME" ] || die "ANDROID_HOME=$ANDROID_HOME directory is not exist."
     
@@ -477,29 +2423,20 @@ __check_ANDROID_HOME() {
     done
 }
 
-__check_PROJECT_DIR() {
-    [ -d "$PROJECT_DIR" ] || die "PROJECT_DIR=$PROJECT_DIR directory is not exist."
-    info "PROJECT_DIR   = $PROJECT_DIR"
-    
-    cd "$PROJECT_DIR"
-         
-    [ -z "$GRADLEW" ] && GRADLEW="$PROJECT_DIR/gradlew"
-    [ -f "$GRADLEW" ] || die "$GRADLEW is not exist."
-    [ -x "$GRADLEW" ] || die "$GRADLEW is not execuable."
+__inspect_android_project() {
+    [ -f "$PROJECT_DIR/gradlew" ] || die "$PROJECT_DIR/gradlew is not exist."
+    [ -x "$PROJECT_DIR/gradlew" ] || die "$PROJECT_DIR/gradlew is not execuable."
 
-    find_out_app_module
-
-    [ -z "$GRADLE_SETTINGS_FILE" ] && GRADLE_SETTINGS_FILE="$PROJECT_DIR/settings.gradle.kts"
+    GRADLE_SETTINGS_FILE="$PROJECT_DIR/settings.gradle.kts"
     [ -f "$GRADLE_SETTINGS_FILE" ] || GRADLE_SETTINGS_FILE="$PROJECT_DIR/settings.gradle"
     [ -f "$GRADLE_SETTINGS_FILE" ] || die "$PROJECT_DIR/settings.gradle or $PROJECT_DIR/settings.gradle.kts is not exist."
+
     [ -f "$PROJECT_DIR/gradle.properties" ] || die "$PROJECT_DIR/gradle.properties is not exist."
     [ -d "$PROJECT_DIR/gradle" ]            || die "$PROJECT_DIR/gradle directory is not exist."
-}
 
-find_out_app_module() {
-    for item in *
+    for item in $(ls "$PROJECT_DIR")
     do
-        [ -d "$item" ] && {
+        [ -d "$PROJECT_DIR/$item" ] && {
             temp="$PROJECT_DIR/$item/build.gradle"
             [ -f "$temp" ] && grep "[\"|']com.android.application[\"|']" "$temp" > /dev/null && {
                 GRADLE_APP_MODULE_NAME="$item"
@@ -515,82 +2452,51 @@ find_out_app_module() {
             } && break
         }
     done
+
     [ -f "$GRADLE_APP_MODULE_BUILD_FILE" ] || die "$PROJECT_DIR/app/build.gradle or $PROJECT_DIR/app/build.gradle.kts is not exist."
 }
 
-__check_OUTPUT_DIR() {
-    [ -z "$OUTPUT_DIR" ] && {
-        if [ -n "$PROJECT_DIR" ] ; then
-            OUTPUT_DIR="$PROJECT_DIR"
-            warn "missing --output-dir=DIR argument. so we use the default value [PROJECT_DIR=$PROJECT_DIR]"
-        else
-            OUTPUT_DIR="$PWD"
-            warn "missing --output-dir=DIR argument. so we use the default value [PWD=$PWD]"
+__inspect_key_store_of_a_android_project() {
+    if [ -z "$PROJECT_DIR" ] ; then
+        die "PROJECT_DIR is not set."
+    fi
+
+    [ -z "$KEY_STORE_FILE_PATH" ] && {
+        warn "missing --keystore-file=FILE argument. so we inspect value from [$GRADLE_APP_MODULE_BUILD_FILE]"
+        KEY_STORE_FILE_PATH=$(grep "storeFile\s*=*\s*file\s*(\s*[\"|'].*[\"|']\s*)" "$GRADLE_APP_MODULE_BUILD_FILE" | sed "s@.*[\"|']\(.*\)[\"|'].*@\1@")
+        KEY_STORE_FILE_PATH="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/$KEY_STORE_FILE_PATH"
+        # https://unix.stackexchange.com/questions/136494/whats-the-difference-between-realpath-and-readlink-f#:~:text=GNU%20coreutils%20introduced%20a%20realpath,in%20common%20with%20GNU%20readlink%20.
+        if command -v realpath > /dev/null ; then
+            KEY_STORE_FILE_PATH=$(realpath $KEY_STORE_FILE_PATH)
+        elif command -v readlink > /dev/null && readlink -f xx > /dev/null 2>&1 ; then
+            KEY_STORE_FILE_PATH=$(readlink -f $KEY_STORE_FILE_PATH)
         fi
+        [ -f "$KEY_STORE_FILE_PATH" -o -L "$KEY_STORE_FILE_PATH" ] || die "file is not exist : ${KEY_STORE_FILE_PATH}"
     }
-    info "OUTPUT_DIR    = $OUTPUT_DIR"
-}
 
-__check_APP_NAME() {
-    [ -z "$APP_NAME" ] && {
-        if [ -n "$PROJECT_DIR" ] ; then
-            APP_NAME="$(basename "$PROJECT_DIR")"
-            warn "missing --app-name argument. so we use the default value [basename $PROJECT_DIR]"
-        else
-            APP_NAME="$(basename "$OUTPUT_DIR")"
-            warn "missing --app-name argument. so we use the default value [basename $OUTPUT_DIR]"
+    if [ -z "$KEY_STORE_FILE_PASSWORD" ] ; then
+        KEY_STORE_FILE_PASSWORD=$(get_value_from_app_module_build_gradle storePassword)
+        if [ -z "$KEY_STORE_FILE_PASSWORD" ] ; then
+            die "can't read storePassword from $GRADLE_APP_MODULE_BUILD_FILE."
         fi
-    }
-    info "APP_NAME         = $APP_NAME"
-}
-
-__check_APP_VERSION_NAME() {
-    if [ -n "$PROJECT_DIR" ] ; then
-        [ -z "$APP_VERSION_NAME" ] && APP_VERSION_NAME=$(get_value_from_build_gradle 'versionName')
-        [ -z "$APP_VERSION_NAME" ] && die "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
-    else
-        APP_VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'versionName' | awk 'BEGIN{RS=" "} /versionName/{print}' | sed "s/versionName=\'\(.*\)\'/\1/")
     fi
-    info "APP_VERSION_NAME = $APP_VERSION_NAME"
-}
 
-__check_APP_PACKAGE_NAME() {
-    if [ -n "$PROJECT_DIR" ] ; then
-        [ -z "$APP_PACKAGE_NAME" ] && APP_PACKAGE_NAME=$(get_value_from_build_gradle 'applicationId')
-        [ -z "$APP_PACKAGE_NAME" ] && die "can't read applicationId from $GRADLE_APP_MODULE_BUILD_FILE."
-    else
-        APP_PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep "package: name=" |  awk 'BEGIN{RS=" "} /^name/{print}' | sed "s/name=\'\(.*\)\'/\1/")
+    if [ -z "$KEY_STORE_KEY_ALIAS" ] ; then
+        KEY_STORE_KEY_ALIAS=$(get_value_from_app_module_build_gradle keyAlias)
+        if [ -z "$KEY_STORE_KEY_ALIAS" ] ; then
+            die "can't read keyAlias from $GRADLE_APP_MODULE_BUILD_FILE."
+        fi
     fi
-    info "APP_PACKAGE_NAME = $APP_PACKAGE_NAME"
-}
 
-__check_KEY_STORE() {
-    if [ -n "$PROJECT_DIR" ] ; then
-        [ -z "$KEY_STORE_FILE_PATH" ] && {
-            KEY_STORE_FILE_PATH=$(grep "storeFile\s*=*\s*file\s*(\s*[\"|'].*[\"|']\s*)" "$GRADLE_APP_MODULE_BUILD_FILE" | sed "s@.*[\"|']\(.*\)[\"|'].*@\1@")
-            KEY_STORE_FILE_PATH="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/$KEY_STORE_FILE_PATH"
-        }
-        [ -z "$KEY_STORE_PASSWORD" ]  && KEY_STORE_PASSWORD=$(get_value_from_build_gradle 'storePassword')
-        [ -z "$KEY_STORE_KEY_ALIAS" ] && KEY_STORE_KEY_ALIAS=$(get_value_from_build_gradle 'keyAlias')
-        [ -z "$KEY_STORE_KEY_PASSWORD" ] && KEY_STORE_KEY_PASSWORD=$(get_value_from_build_gradle 'keyPassword')
-    else 
-        [ -z "$KEY_STORE_FILE_PATH" ]    && die "missing --keystore-file=FILE argument."
-        [ -z "$KEY_STORE_PASSWORD" ]     && die "missing --keystore-password=VALUE argument."
-        [ -z "$KEY_STORE_KEY_ALIAS" ]    && die "missing --keystore-key-alias=VALUE argument."
-        [ -z "$KEY_STORE_KEY_PASSWORD" ] && die "missing --keystore-key-password=VALUE argument."
+    if [ -z "$KEY_STORE_KEY_PASSWORD" ] ; then
+        KEY_STORE_KEY_PASSWORD=$(get_value_from_app_module_build_gradle keyPassword)
+        if [ -z "$KEY_STORE_KEY_PASSWORD" ] ; then
+            die "can't read keyPassword from $GRADLE_APP_MODULE_BUILD_FILE."
+        fi
     fi
-    
-    [ -f "$KEY_STORE_FILE_PATH" ] || die "KEY_STORE_FILE_PATH = ${KEY_STORE_FILE_PATH} is not a file or is not exist."
-    
-    info "KEY_STORE_FILE_PATH    = $KEY_STORE_FILE_PATH"
-    info "KEY_STORE_PASSWORD     = $KEY_STORE_PASSWORD"
-    info "KEY_STORE_KEY_ALIAS    = $KEY_STORE_KEY_ALIAS"
-    info "KEY_STORE_KEY_PASSWORD = $KEY_STORE_KEY_PASSWORD"
 }
 
 __check_RESGUARD_CONFIG_FILE() {
-    [ -z "$RESGUARD_CONFIG_FILE" ] && [ -n "$PROJECT_DIR" ] && RESGUARD_CONFIG_FILE="$PROJECT_DIR/AndResGuard-config.xml"
-    [ -z "$RESGUARD_CONFIG_FILE" ] && RESGUARD_CONFIG_FILE="$PWD/AndResGuard-config.xml"
     [ -f "$RESGUARD_CONFIG_FILE" ] || {
         cat > "$RESGUARD_CONFIG_FILE" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -603,22 +2509,22 @@ __check_RESGUARD_CONFIG_FILE() {
   </issue>
 
   <issue id="whitelist" isactive="true">
-    <path value="${APP_PACKAGE_NAME}.R.mipmap.ic_launcher"/>
-    <path value="${APP_PACKAGE_NAME}.R.mipmap.service*"/>
-    <path value="${APP_PACKAGE_NAME}.R.string.com.crashlytics.*"/>
-    <path value="${APP_PACKAGE_NAME}.R.string.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.layout.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.drawable.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.anim.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.color.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.style.*UM*"/>
-    <path value="${APP_PACKAGE_NAME}.R.style.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.id.umeng*"/>
-    <path value="${APP_PACKAGE_NAME}.R.string.UM*"/>
-    <path value="${APP_PACKAGE_NAME}.R.string.tb_*"/>
-    <path value="${APP_PACKAGE_NAME}.R.layout.tb_*"/>
-    <path value="${APP_PACKAGE_NAME}.R.drawable.tb_*"/>
-    <path value="${APP_PACKAGE_NAME}.R.color.tb_*"/>
+    <path value="${PACKAGE_NAME}.R.mipmap.ic_launcher"/>
+    <path value="${PACKAGE_NAME}.R.mipmap.service*"/>
+    <path value="${PACKAGE_NAME}.R.string.com.crashlytics.*"/>
+    <path value="${PACKAGE_NAME}.R.string.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.layout.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.drawable.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.anim.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.color.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.style.*UM*"/>
+    <path value="${PACKAGE_NAME}.R.style.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.id.umeng*"/>
+    <path value="${PACKAGE_NAME}.R.string.UM*"/>
+    <path value="${PACKAGE_NAME}.R.string.tb_*"/>
+    <path value="${PACKAGE_NAME}.R.layout.tb_*"/>
+    <path value="${PACKAGE_NAME}.R.drawable.tb_*"/>
+    <path value="${PACKAGE_NAME}.R.color.tb_*"/>
   </issue>
 
   <issue id="keepmapping" isactive="false">
@@ -635,7 +2541,7 @@ __check_RESGUARD_CONFIG_FILE() {
 
   <issue id="sign" isactive="true">
     <path value="$KEY_STORE_FILE_PATH"/>
-    <storepass value="$KEY_STORE_PASSWORD"/>
+    <storepass value="$KEY_STORE_FILE_PASSWORD"/>
     <keypass value="$KEY_STORE_KEY_PASSWORD"/>
     <alias value="$KEY_STORE_KEY_ALIAS"/>
   </issue>
@@ -644,200 +2550,113 @@ __check_RESGUARD_CONFIG_FILE() {
 EOF
         die "$RESGUARD_CONFIG_FILE is not exist. so we have generated it for you, modify it yourself, then try again. see details: https://github.com/shwenzhang/AndResGuard/blob/master/doc/how_to_work.md#how-to-write-configxml-file"
     }
-    
-    info "RESGUARD_CONFIG_FILE = $RESGUARD_CONFIG_FILE"
-
-    [ -z "$RESGUARD_CONFIG_FILE" ] && die "RESGUARD_CONFIG_FILE is not set. you can config it in \$HOME/.androidx or use --resguard-config-file=FILE to set it, then try again."
-    [ -f "$RESGUARD_CONFIG_FILE" ] || die "RESGUARD_CONFIG_FILE = $RESGUARD_CONFIG_FILE is not a file or is not exist."
 }
 
-__check_QIHU360_account() {
-    __read_my_config_file
-    [ -z "$QIHU360_USERNAME" ] && [ -z "$QIHU360_PASSWORD" ] && die "QIHU360_USERNAME and QIHU360_PASSWORD are not set. you can config it in \$HOME/.androidx, then try again."
-    [ -z "$QIHU360_USERNAME" ] && die "QIHU360_USERNAME is not set. you can config it in \$HOME/.androidx, then try again."
-    [ -z "$QIHU360_PASSWORD" ] && die "QIHU360_PASSWORD is not set. you can config it in \$HOME/.androidx, then try again."
-}
-
-__check_CHANNELS_CONFIG_FILE() {
-    [ -z "$CHANNELS_CONFIG_FILE" ] && {
-        if [ -n "$PROJECT_DIR" ] ; then
-            CHANNELS_CONFIG_FILE="$PROJECT_DIR/channels-config.txt"
-            [ -f "$CHANNELS_CONFIG_FILE" ] || die "CHANNELS_CONFIG_FILE is not set. you can create a file which name is channels-config.txt in \$PROJECT_DIR or use --channels-config-file=FILE argument to specify it, then try again."
-        elif [ -n "$INPUT_APK_FILE" ] ; then
-            CHANNELS_CONFIG_FILE="$PWD/channels-config.txt"
-            [ -f "$CHANNELS_CONFIG_FILE" ] || die "CHANNELS_CONFIG_FILE is not set. you can create a file which name os channels-config.txt in \$PWD or use --channels-config-file=FILE to specify it, then try again."
-        fi
-    }
-    
-    [ -f "$CHANNELS_CONFIG_FILE" ] || die "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE is not a file or is not exist."
-    info "CHANNELS_CONFIG_FILE = $CHANNELS_CONFIG_FILE"
-}
-
-__check_ENVIRONMENT() {
-    [ -z "${ENVIRONMENT}" ] && {
-        ENVIRONMENT=debug
-        warn "missing --environment=VALUE argument. so we use the default value [debug]."
-    }
-    
-    info "ENVIRONMENT   = $ENVIRONMENT"
-}
-
-# 修改AndroidManifest.xml里面的android:debuggable开关
-__modify_android_manifest_xml_debuggable() {
-    if [ "$ENVIRONMENT" = "release" ] ; then
-        debuggable=false
+__inspect_qihu360_username_and_password() {
+    if [ -f "$HOME/.androidx" ] || [ -L "$HOME/.androidx" ] ; then
+        .   "$HOME/.androidx"
     else
-        debuggable=true
+        die "file is not exist : $HOME/.androidx"
     fi
-    
-    sed_in_place "s|android:debuggable=\"$.*\"|android:debuggable=\"${debuggable}\"|g" "$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/src/main/AndroidManifest.xml"
+
+    if [ -z "$QIHU360_USERNAME" ] ; then
+        die "QIHU360_USERNAME is not assigned to a value. you can config it in \$HOME/.androidx, then try again."
+    fi
+
+    if [ -z "$QIHU360_PASSWORD" ] ; then
+        die "QIHU360_PASSWORD is not assigned to a value. you can config it in \$HOME/.androidx, then try again."
+    fi
 }
 
+__unset() {
+    unset VERBOSE
+    unset ACTION
 
-__build_android_project() {
-    if [ -f "$PROJECT_DIR/local.properties" ] ; then
-        sed_in_place "s|sdk\.dir=.*|sdk.dir=${ANDROID_HOME}|g" "$PROJECT_DIR/local.properties"
-    fi
+    unset PROJECT_DIR
+    unset WORKING_DIR
+    unset  OUTPUT_DIR
+
+    unset PACKAGE_NAME
+    unset VERSION_NAME
+
+    unset BUILD_TYPE
+
+    unset  INPUT_APK_FILE
+    unset OUTPUT_APK_FILE
+
+    unset GRADLE_SETTINGS_FILE
+    unset GRADLE_APP_MODULE_NAME
+    unset GRADLE_APP_MODULE_BUILD_FILE
+    unset GRADLE_APP_MODULE_BUILD_FILE_TYPE
+
+    unset KEY_STORE_FILE_PATH
+    unset KEY_STORE_FILE_PASSWORD
+    unset KEY_STORE_KEY_PASSWORD
+    unset KEY_STORE_KEY_ALIAS
+
+    unset QIHU360_USERNAME
+    unset QIHU360_PASSWORD
     
-    # 修改版本号（版本号使用十位的Unix时间戳，它精确到秒，而且它不会超过Java中的int类型的最大范围（2147483647），示例：1516856238）
-    sed_in_place "s|versionCode.*=.*|versionCode = $TIMESTAMP_UNIX|g" "$GRADLE_APP_MODULE_BUILD_FILE"
-     
-    #删除掉构建目录
-    rm -rf "$(find . -name "build")"
+    unset RESGUARD_CONFIG_FILE
     
-    #清除掉上次编译的其他临时数据
-    "$GRADLEW" clean
-    
-    #开始构建
-    "$GRADLEW" assemble$(printf "$ENVIRONMENT" | awk '{print(toupper(substr($0, 1, 1))""substr($0, 2))}') || die "build failed."
-     
-    INPUT_APK_FILE="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/build/outputs/apk/${ENVIRONMENT}/${GRADLE_APP_MODULE_NAME}-${ENVIRONMENT}.apk"
+    unset CHANNELS_CONFIG_FILE
+    unset CHANNELS_OUT_DIR
+
+    NEED_CONVERT_TO_WEBP=false
+    NEED_REDEX=false
+    NEED_RESGUARD=false
+    NEED_JIAGU=false
+    NEED_GEN_CHANNELS=false
+    NEED_ZIP_CHANNELS=false
+    NEED_INSTALL_TO_DEVICE=false
+    NEED_SIGN=false
 }
 
-__build() {
-    command -v gsed  > /dev/null || 
-    command -v sed   > /dev/null || die "sed is not installed."
-    command -v grep  > /dev/null || die "grep is not installed."
-    command -v unzip > /dev/null || die "unzip is not installed."
+# __parse_arguments build|repack [ARGUMENT]...
+__parse_arguments() {
+    ACTION=$1
 
-    OS="$(uname -s)"
-    TIMESTAMP_UNIX="$(date +%s)"
-    TIMESTAMP_FORM=$(format_unix_timestamp "$TIMESTAMP_UNIX" "+%Y%m%d%H%M%S")
-    
+    shift
+
     while [ -n "$1" ]
     do
         case $1 in
-            --webp)
-                isWebp=true
-                command -v cwebp > /dev/null || die "libwebp is not installed."
-                command -v 7za   > /dev/null || die "p7zip is not installed."
-                ;;
-            --resguard)
-                isResGuard=true
-                command -v 7za > /dev/null || die "p7zip is not installed."
-                command -v andresguard > /dev/null || die "andresguard-cli is not installed." 
-                ;;
-            --redex)
-                command -v redex > /dev/null || die "redex is not installed."
-                isReDex=true
-                ;;
-            --jiagu)
-                command -v 360jiagubao > /dev/null || die "qihu360jiagubao is not installed."
-                isJiaGu=true
-                ;;
-            --channels-gen)
-                command -v walle > /dev/null || die "walle-cli is not installed."
-                isGenChannels=true
-                ;;
-            --channels-zip)
-                command -v zip > /dev/null || die "zip is not installed."
-                isZipChannels=true
-                ;;
-            --install)
-                needInstall=true
-                ;;
-            --verbose|-v)
-                VERBOSE=true
-                ;;
-            --xtrace|-x)
-                set -x
-                ;;
-            --app-name=*)
-                APP_NAME=$(getvalue "$1")
-                ;;
-            --environment=*)
-                ENVIRONMENT=$(getvalue "$1")
-                ;;
-            --input-apk-file=*)
-                INPUT_APK_FILE=$(getvalue "$1")
-                [ -z "$INPUT_APK_FILE" ] && shift && continue 
-                case "$INPUT_APK_FILE" in
-                    /*) ;;
-                    \~|\~/) INPUT_APK_FILE="$HOME" ;;
-                    \~/*)   INPUT_APK_FILE="${HOME}$(printf "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
-                    .|./)   INPUT_APK_FILE="$PWD" ;;
-                    *)      INPUT_APK_FILE="$PWD/$INPUT_APK_FILE" ;;
-                esac
-                ;;
-            --channels-config-file=*)
-                CHANNELS_CONFIG_FILE=$(getvalue "$1")
-                [ -z "$CHANNELS_CONFIG_FILE" ] && die "--channels-config-file argument's value must be not empty."
-                case "$CHANNELS_CONFIG_FILE" in
-                    /*) ;;
-                    \~|\~/) CHANNELS_CONFIG_FILE="$HOME" ;;
-                    \~/*)   CHANNELS_CONFIG_FILE="${HOME}$(printf "$CHANNELS_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
-                    .|./)   CHANNELS_CONFIG_FILE="$PWD" ;;
-                    *)      CHANNELS_CONFIG_FILE="$PWD/$CHANNELS_CONFIG_FILE" ;;
-                esac
-                ;;
-            --resguard-config-file=*)
-                RESGUARD_CONFIG_FILE=$(getvalue "$1")
-                [ -z "$RESGUARD_CONFIG_FILE" ] && die "--resguard-config-file argument's value must be not empty."
-                case "$RESGUARD_CONFIG_FILE" in
-                    /*) ;;
-                    \~|\~/) RESGUARD_CONFIG_FILE="$HOME" ;;
-                    \~/*)   RESGUARD_CONFIG_FILE="${HOME}$(printf "$RESGUARD_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
-                    .|./)   RESGUARD_CONFIG_FILE="$PWD" ;;
-                    *)      RESGUARD_CONFIG_FILE="$PWD/$RESGUARD_CONFIG_FILE" ;;
-                esac
-                ;;
-            --keystore-file=*)
-                KEY_STORE_FILE_PATH=$(getvalue "$1")
-                [ -z "$KEY_STORE_FILE_PATH" ] && die "--keystore-file argument's value must be not empty."
-                case "$KEY_STORE_FILE_PATH" in
-                    /*) ;;
-                    \~|\~/) KEY_STORE_FILE_PATH="$HOME" ;;
-                    \~/*)   KEY_STORE_FILE_PATH="${HOME}$(printf "$KEY_STORE_FILE_PATH" | awk '{print(substr($0, 2))}')" ;;
-                    .|./)   KEY_STORE_FILE_PATH="$PWD" ;;
-                    *)      KEY_STORE_FILE_PATH="$PWD/$KEY_STORE_FILE_PATH" ;;
-                esac
-                ;;
-            --keystore-password=*)
-                KEY_STORE_PASSWORD=$(getvalue "$1")
-                [ -z "$KEY_STORE_PASSWORD" ] && die "--keystore-password argument's value must be not empty."
-                ;;
-            --keystore-key-alias=*)
-                KEY_STORE_KEY_ALIAS=$(getvalue "$1")
-                [ -z "$KEY_STORE_KEY_ALIAS" ] && die "--keystore-key-alias argument's value must be not empty."
-                ;;
-            --keystore-key-password=*)
-                KEY_STORE_KEY_PASSWORD=$(getvalue "$1")
-                [ -z "$KEY_STORE_KEY_PASSWORD" ] && die "--keystore-key-password argument's value must be not empty."
-                ;;
             --project-dir=*)
-                PROJECT_DIR=$(getvalue "$1")
-                [ -z "$PROJECT_DIR" ] && shift && continue 
-                case "$PROJECT_DIR" in
-                    /*) ;;
-                    \~|\~/) PROJECT_DIR="$HOME" ;;
-                    \~/*)   PROJECT_DIR="${HOME}$(printf "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
-                    .|./)   PROJECT_DIR="$PWD" ;;
-                    *)      PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
-                esac
+                if [ "$ACTION" = 'build' ] ; then
+                    PROJECT_DIR=$(getvalue "$1")
+                    case "$PROJECT_DIR" in
+                        '') die "--project-dir=DIR, DIR must be not empty." ;;
+                        /*) ;;
+                        \~|\~/) PROJECT_DIR="$HOME" ;;
+                        \~/*)   PROJECT_DIR="${HOME}$(printf "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
+                        .|./)   PROJECT_DIR="$PWD" ;;
+                        *)      PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
+                    esac
+                    if [ ! -d "$PROJECT_DIR" ] ; then
+                        die "PROJECT_DIR=$PROJECT_DIR directory is not exist."
+                    fi
+                else
+                    die "unrecognized argument : $1"
+                fi
+                ;;
+            --input-file=*)
+                if [ "$ACTION" = 'repack' ] ; then
+                    INPUT_APK_FILE=$(getvalue "$1")
+                    case "$INPUT_APK_FILE" in
+                        '') die "--input-file=FILE, FILE must be not empty." ;;
+                        /*) ;;
+                        \~|\~/) INPUT_APK_FILE="$HOME" ;;
+                        \~/*)   INPUT_APK_FILE="${HOME}$(printf "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
+                        .|./)   INPUT_APK_FILE="$PWD" ;;
+                        *)      INPUT_APK_FILE="$PWD/$INPUT_APK_FILE" ;;
+                    esac
+                else
+                    die "unrecognized argument : $1"
+                fi
                 ;;
             --output-dir=*)
                 OUTPUT_DIR=$(getvalue "$1")
-                [ -z "$OUTPUT_DIR" ] && die "--output-dir argument's value must be not empty."
+                [ -z "$OUTPUT_DIR" ] && die "--output-dir=DIR, DIR must be not empty."
                 case "$OUTPUT_DIR" in
                     /*);;
                     \~|\~/) OUTPUT_DIR="$HOME" ;;
@@ -846,162 +2665,528 @@ __build() {
                     *)      OUTPUT_DIR="$PWD/$OUTPUT_DIR" ;;
                 esac
                 ;;
-            *)  die "$1 : unrecognized argument."
+            --webp)
+                NEED_CONVERT_TO_WEBP=true
+                regist_dependency required command cwebp
+                regist_dependency required command 7za
+                ;;
+            --resguard)
+                NEED_RESGUARD=true
+                regist_dependency required command andresguard
+                regist_dependency required command 7za
+                ;;
+            --redex)
+                regist_dependency required command redex
+                NEED_REDEX=true
+                ;;
+            --jiagu)
+                regist_dependency required command 360jiagubao
+                NEED_JIAGU=true
+                ;;
+            --channels)
+                regist_dependency required command walle
+                NEED_GEN_CHANNELS=true
+                ;;
+            --channels=*)
+                case $(getvalue $1) in
+                    ''|true)
+                        regist_dependency required command walle
+                        NEED_GEN_CHANNELS=true
+                        ;;
+                    false);;
+                    zip)
+                        regist_dependency required command walle
+                        regist_dependency required command zip
+                        NEED_GEN_CHANNELS=true
+                        NEED_ZIP_CHANNELS=true
+                        ;;
+                    *) die "unrecognized argument : $1"
+                esac
+                ;;
+            --install)
+                NEED_INSTALL_TO_DEVICE=true
+                ;;
+            --verbose|-v)
+                VERBOSE=true
+                ;;
+            --xtrace|-x)
+                set -x
+                ;;
+            --build-type=*)
+                BUILD_TYPE=$(getvalue "$1")
+                if [ -z "$BUILD_TYPE" ] ; then
+                    die "--build-type=VALUE, VALUE must be not empty."
+                fi
+                ;;
+            --channels-config-file=*)
+                CHANNELS_CONFIG_FILE=$(getvalue "$1")
+                if [ -z "$CHANNELS_CONFIG_FILE" ] ; then
+                    die "--channels-config-file=FILE, FILE must be not empty."
+                fi
+                case "$CHANNELS_CONFIG_FILE" in
+                    /*) ;;
+                    \~|\~/) CHANNELS_CONFIG_FILE="$HOME" ;;
+                    \~/*)   CHANNELS_CONFIG_FILE="${HOME}$(printf "$CHANNELS_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    .|./)   CHANNELS_CONFIG_FILE="$PWD" ;;
+                    *)      CHANNELS_CONFIG_FILE="$PWD/$CHANNELS_CONFIG_FILE" ;;
+                esac
+                if [ ! -f "$CHANNELS_CONFIG_FILE" ] && [ ! -L "$CHANNELS_CONFIG_FILE" ] ; then
+                    die "--channels-config-file=FILE, FILE must exist."
+                fi
+                ;;
+            --resguard-config-file=*)
+                RESGUARD_CONFIG_FILE=$(getvalue "$1")
+                if [ -z "$RESGUARD_CONFIG_FILE" ] ; then
+                    die "--resguard-config-file=FILE, FILE must be not empty."
+                fi
+                case "$RESGUARD_CONFIG_FILE" in
+                    /*) ;;
+                    \~|\~/) RESGUARD_CONFIG_FILE="$HOME" ;;
+                    \~/*)   RESGUARD_CONFIG_FILE="${HOME}$(printf "$RESGUARD_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    .|./)   RESGUARD_CONFIG_FILE="$PWD" ;;
+                    *)      RESGUARD_CONFIG_FILE="$PWD/$RESGUARD_CONFIG_FILE" ;;
+                esac
+                if [ ! -f "$RESGUARD_CONFIG_FILE" ] && [ ! -L "$RESGUARD_CONFIG_FILE" ] ; then
+                    die "--resguard-config-file=FILE, FILE must exist."
+                fi
+                ;;
+            --keystore-file=*)
+                KEY_STORE_FILE_PATH=$(getvalue "$1")
+                if [ -z "$KEY_STORE_FILE_PATH" ] ; then
+                    die "--keystore-file=FILE, FILE must be not empty."
+                fi
+                case "$KEY_STORE_FILE_PATH" in
+                    /*) ;;
+                    \~|\~/) KEY_STORE_FILE_PATH="$HOME" ;;
+                    \~/*)   KEY_STORE_FILE_PATH="${HOME}$(printf "$KEY_STORE_FILE_PATH" | awk '{print(substr($0, 2))}')" ;;
+                    .|./)   KEY_STORE_FILE_PATH="$PWD" ;;
+                    *)      KEY_STORE_FILE_PATH="$PWD/$KEY_STORE_FILE_PATH" ;;
+                esac
+                if [ ! -f "$KEY_STORE_FILE_PATH" ] && [ ! -L "$KEY_STORE_FILE_PATH" ] ; then
+                    die "--keystore-file=FILE, FILE must exist."
+                fi
+                ;;
+            --keystore-password=*)
+                KEY_STORE_FILE_PASSWORD=$(getvalue "$1")
+                if [ -z "$KEY_STORE_FILE_PASSWORD" ] ; then
+                    die "--keystore-password=VALUE, VALUE must be not empty."
+                fi
+                ;;
+            --keystore-key-alias=*)
+                KEY_STORE_KEY_ALIAS=$(getvalue "$1")
+                if [ -z "$KEY_STORE_KEY_ALIAS" ] ; then
+                    die "--keystore-key-alias=VALUE, VALUE must be not empty."
+                fi
+                ;;
+            --keystore-key-password=*)
+                KEY_STORE_KEY_PASSWORD=$(getvalue "$1")
+                if [ -z "$KEY_STORE_KEY_PASSWORD" ] ; then
+                    die "--keystore-key-password=VALUE, VALUE must be not empty."
+                fi
+                ;;
+            *)  die "unrecognized argument : $1"
         esac
         shift
     done
+
+    if [ "$NEED_CONVERT_TO_WEBP" = true -o "$NEED_REDEX" = true -o "$NEED_RESGUARD" = true -o "$NEED_JIAGU" = true ] ; then
+        NEED_SIGN=true
+    fi
+
+    case $ACTION in
+        build)
+            [ -z "$PROJECT_DIR" ] && {
+                PROJECT_DIR="$PWD"
+                warn "missing --project-dir=DIR  argument. so we use the default value [PWD=$PWD]"
+            }
+            __inspect_android_project
+            [ -z "$OUTPUT_DIR" ] && {
+                OUTPUT_DIR="$PROJECT_DIR"
+                warn "missing --output-dir=DIR   argument. so we use the default value [PROJECT_DIR=$PROJECT_DIR]"
+            }
+            [ -z "$BUILD_TYPE" ] && {
+                BUILD_TYPE=debug
+                warn "missing --build-type=VALUE argument. so we use the default value [debug]"
+            }
+            if [ "$NEED_RESGUARD" = true ] && [ -z "$RESGUARD_CONFIG_FILE" ] ; then
+                RESGUARD_CONFIG_FILE="$PROJECT_DIR/AndResGuard-config.xml"
+                if [ -f "$RESGUARD_CONFIG_FILE" ] ; then
+                    warn "missing --resguard-config-file=FILE argument. we try to find AndResGuard-config.xml in your project root dir [$PROJECT_DIR], we're lucky to find it."
+                else
+                    die  "missing --resguard-config-file=FILE argument. we try to find AndResGuard-config.xml in your project root dir [$PROJECT_DIR], we're unlucky to find it. to resolve this error, you have 2 choices:\n    1. create a file named AndResGuard-config.xml in your project root dir [$PROJECT_DIR]\n    2. use --resguard-config-file=FILE argument to specify it"
+                fi
+            fi
+            if [ "$NEED_GEN_CHANNELS" = true ] && [ -z "$CHANNELS_CONFIG_FILE" ] ; then
+                CHANNELS_CONFIG_FILE="$PROJECT_DIR/channels-config.txt"
+                if [ -f "$CHANNELS_CONFIG_FILE" ] ; then
+                    warn "missing --channels-config-file=FILE argument. but channels-config.txt have been found in [PROJECT_DIR=$PROJECT_DIR]."
+                else
+                    die  "missing --channels-config-file=FILE argument. and channels-config.txt have not been found in [PROJECT_DIR=$PROJECT_DIR]. you can create a file named channels-config.txt in [PROJECT_DIR=$PROJECT_DIR] or use --channels-config-file=FILE argument to specify it, then try again."
+                fi
+            fi
+            if [ "$NEED_SIGN" = true ] ; then
+                __inspect_key_store_of_a_android_project
+            fi
+            echo "--project-dir= $PROJECT_DIR"
+            ;;
+        repack)
+            [ -z "$INPUT_APK_FILE" ] && {
+                die "missing --input-file=FILE argument."
+            }
+            [ -z "$OUTPUT_DIR" ] && {
+                OUTPUT_DIR="$PWD"
+                warn "missing --output-dir=DIR   argument. so we use the default value [PWD=$PWD]"
+            }
+            [ -z "$BUILD_TYPE" ] && {
+                BUILD_TYPE=debug
+                warn "missing --build-type=VALUE argument. so we use the default value [debug]"
+            }
+            if [ "$NEED_RESGUARD" = true ] && [ -z "$RESGUARD_CONFIG_FILE" ] ; then
+                RESGUARD_CONFIG_FILE="$PWD/AndResGuard-config.xml"
+                if [ -f "$RESGUARD_CONFIG_FILE" ] ; then
+                    warn "missing --resguard-config-file=FILE argument. but AndResGuard-config.xml have been found in [PWD=$PWD]."
+                else
+                    die  "missing --resguard-config-file=FILE argument. and AndResGuard-config.xml have not been found in [PWD=$PWD]. you can create a file named AndResGuard-config.xml in [PWD=$PWD] or use --resguard-config-file=FILE argument to specify it, then try again."
+                fi
+            fi
+            if [ "$NEED_GEN_CHANNELS" = true ] && [ -z "$CHANNELS_CONFIG_FILE" ] ; then
+                CHANNELS_CONFIG_FILE="$PWD/channels-config.txt"
+                if [ -f "$CHANNELS_CONFIG_FILE" ] ; then
+                    warn "missing --channels-config-file=FILE argument. but channels-config.txt have been found in [PWD=$PWD]."
+                else
+                    die  "missing --channels-config-file=FILE argument. and channels-config.txt have not been found in [PWD=$PWD]. you can create a file named channels-config.txt in [PWD=$PWD] or use --channels-config-file=FILE argument to specify it, then try again."
+                fi
+            fi
+            if [ "$NEED_SIGN" = true ] ; then
+                [ -z "$KEY_STORE_FILE_PATH" ]     && die "missing --keystore-file=FILE argument."
+                [ -z "$KEY_STORE_FILE_PASSWORD" ] && die "missing --keystore-password=VALUE argument."
+                [ -z "$KEY_STORE_KEY_ALIAS" ]     && die "missing --keystore-key-alias=VALUE argument."
+                [ -z "$KEY_STORE_KEY_PASSWORD" ]  && die "missing --keystore-key-password=VALUE argument."
+            fi
+            echo "--input-file   = $INPUT_APK_FILE"
+            ;;
+        *)  die "unrecognized action : $ACTION"
+    esac
+
+    echo "--output-dir = $OUTPUT_DIR"
+    echo
+    echo "--build-type = $BUILD_TYPE"
+    echo
+    echo "--webp       = $NEED_CONVERT_TO_WEBP"
+    echo "--resguard   = $NEED_RESGUARD"
+    echo "--redex      = $NEED_REDEX"
+    echo "--jiagu      = $NEED_JIAGU"
+    echo "--channels   = $NEED_GEN_CHANNELS"
+    echo "--install    = $NEED_INSTALL_TO_DEVICE"
+    echo
+
+    if [ "$NEED_SIGN" = true ] ; then
+        echo "--keystore-file          = $KEY_STORE_FILE_PATH"
+        if [ "$VERBOSE" = true ] ; then
+            echo "--keystore-password      = $KEY_STORE_FILE_PASSWORD"
+            echo "--keystore-key-alias     = $KEY_STORE_KEY_ALIAS"
+            echo "--keystore-key-password  = $KEY_STORE_KEY_PASSWORD"
+        fi
+    fi
+
+    if [ "$NEED_RESGUARD" = true ] ; then
+        echo "--resguard-config-file   = $RESGUARD_CONFIG_FILE"
+    fi
+
+    if [ "$NEED_GEN_CHANNELS" = true ] ; then
+        echo "--channels-config-file   = $CHANNELS_CONFIG_FILE"
+    fi
+
+    if [ "$NEED_JIAGU" = true ] ; then
+        __inspect_qihu360_username_and_password
+    fi
+}
+
+# __prepare build|repack [ARGUMENT]...
+__prepare() {
+    set -e
+
+    step "init variables"
+    __unset
+
+    step "show timestamp"
+    TIMESTAMP_UNIX="$(date +%s)"
+    TIMESTAMP_FORM=$(format_unix_timestamp "$TIMESTAMP_UNIX" "+%Y%m%d%H%M%S")
+    echo "TIMESTAMP_UNIX = $TIMESTAMP_UNIX"
+    echo "TIMESTAMP_FORM = $TIMESTAMP_FORM"
+
+    step "show current machine os info"
+    NATIVE_OS_KIND=$(os kind)
+    NATIVE_OS_TYPE=$(os type)
+    NATIVE_OS_NAME=$(os name)
+    NATIVE_OS_VERS=$(os vers)
+    NATIVE_OS_ARCH=$(os arch)
+    NATIVE_OS_LIBC=$(os libc)
+    echo "NATIVE_OS_KIND  = $NATIVE_OS_KIND"
+    echo "NATIVE_OS_TYPE  = $NATIVE_OS_TYPE"
+    echo "NATIVE_OS_NAME  = $NATIVE_OS_NAME"
+    echo "NATIVE_OS_VERS  = $NATIVE_OS_VERS"
+    echo "NATIVE_OS_ARCH  = $NATIVE_OS_ARCH"
+    echo "NATIVE_OS_LIBC  = $NATIVE_OS_LIBC"
     
-    info "--webp        = $isWebp"
-    info "--resguard    = $isResGuard"
-    info "--redex       = $isReDex"
-    info "--jiagu       = $isJiaGu"
-    info "--channels-gen= $isGenChannels"
-    info "--channels-zip= $isZipChannels"
-    info "--install     = $needInstall"
-    info "OS            = $OS"
-    info "TIMESTAMP_UNIX= $TIMESTAMP_UNIX"
-    info "TIMESTAMP_FORM= $TIMESTAMP_FORM"
-     
-    __check_JAVA_HOME
-    __check_ANDROID_HOME
-    
-    if [ -z "$INPUT_APK_FILE" ] && [ -z "$PROJECT_DIR" ] ; then
-        PROJECT_DIR="$PWD"
-        warn "missing --input-apk-file=FILE and --project-dir=DIR argument. so we use the default value [PROJECT_DIR=PWD=$PWD]"
+    if [ "$NATIVE_OS_KIND" != 'windows' ] ; then
+        [ "$(whoami)" = root ] || sudo=sudo
     fi
     
-    if [ -n "$PROJECT_DIR" ] ; then
-        __check_PROJECT_DIR
+    step "show current machine os effective user info"
+    id | tr ' ' '\n' | head -n 2
+
+    step "regist essential tools"
+    regist_dependency required command gsed:sed
+    regist_dependency required command grep
+    regist_dependency required command find
+    regist_dependency required command unzip
+
+    step "handle essential tools"
+    for dependency in $REQUIRED_DEPENDENCY_LIST
+    do
+        handle_dependency $(__decode_dependency "$dependency")
+    done
+
+    step "inspect JDK"
+    __inspect_jdk
+    echo "JAVA_HOME      = $JAVA_HOME"
+
+    step "inspect Android SDK"
+    __inspect_android_sdk
+    echo "ANDROID_HOME   = $ANDROID_HOME"
+
+    step "parse arguments"
+    __parse_arguments $@
+}
+
+# __build build [ARGUMENT]...
+__build() {
+    __prepare $@
+
+    step "change to android project dir"
+    run cd "$PROJECT_DIR"
+
+    step "list content of android project dir"
+    run ls -l
+
+    step "inspect android project info"
+
+    PACKAGE_NAME=$(get_value_from_app_module_build_gradle applicationId)
+    if [ -z "$PACKAGE_NAME" ] ; then
+        die "can't read applicationId from $GRADLE_APP_MODULE_BUILD_FILE."
+    fi
+
+    VERSION_NAME=$(get_value_from_app_module_build_gradle versionName)
+    if [ -z "$VERSION_NAME" ] ; then
+        die "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
+    fi
+
+    echo "PACKAGE_NAME = $PACKAGE_NAME"
+    echo "VERSION_NAME = $VERSION_NAME"
+
+    step "update config file"
+    if [ -f local.properties ] ; then
+        sed_in_place "s|sdk\.dir=.*|sdk.dir=${ANDROID_HOME}|g" local.properties
+    fi
+
+    # 修改版本号（版本号使用十位的Unix时间戳，它精确到秒，而且它不会超过Java中的int类型的最大范围（2147483647），示例：1516856238）
+    sed_in_place "s|versionCode.*=.*|versionCode = $TIMESTAMP_UNIX|g" "$GRADLE_APP_MODULE_BUILD_FILE"
+
+    if [ "$BUILD_TYPE" = 'release' ] ; then
+        ANDROID_DEBUGGABLE=false
     else
-        info "INPUT_APK_FILE= $INPUT_APK_FILE"
-        is_a_valid_apk_file "$INPUT_APK_FILE"
+        ANDROID_DEBUGGABLE=true
     fi
+    sed_in_place "s|android:debuggable=\"$.*\"|android:debuggable=\"${ANDROID_DEBUGGABLE}\"|g" "$GRADLE_APP_MODULE_NAME/src/main/AndroidManifest.xml"
+
+    step "clean cache"
+    for item in $(find . -name build -type d)
+    do
+        run rm -rf "$item"
+    done
+    run ./gradlew clean
+
+    step "building"
+    run ./gradlew assemble$(printf "$BUILD_TYPE" | awk '{print(toupper(substr($0, 1, 1))""substr($0, 2))}')
+
+    INPUT_APK_FILE="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/build/outputs/apk/${BUILD_TYPE}/${GRADLE_APP_MODULE_NAME}-${BUILD_TYPE}.apk"
+
+    __repack build
+}
+
+# __repack build|repack [ARGUMENT]...
+__repack() {
+    case $1 in
+        build)  ;;
+        repack) __prepare $@ ;;
+        *) die "unrecognized command : $1"
+    esac
+
+    step "inspect input apk file"
+    PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep "package: name=" |  awk 'BEGIN{RS=" "} /^name/{print}' | sed "s/name=\'\(.*\)\'/\1/")
+    VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'versionName' | awk 'BEGIN{RS=" "} /versionName/{print}' | sed "s/versionName=\'\(.*\)\'/\1/")
+    echo "PACKAGE_NAME = $PACKAGE_NAME"
+    echo "VERSION_NAME = $VERSION_NAME"
+
+    step "create working directory"
+    info "mktemp -d"
+    WORKING_DIR=$(mktemp -d)
+
+    unset OUTPUT_APK_FILE
+    OUTPUT_APK_FILE="$WORKING_DIR/input.apk"
     
-    [ "$isWebp" = "true" -o "$isReDex" = "true" -o "$isResGuard" = "true" -o "$isJiaGu" = "true" ] && __check_KEY_STORE
+    run cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILE"
     
-    __check_ENVIRONMENT
-    __check_OUTPUT_DIR
-    __check_APP_NAME
-    __check_APP_VERSION_NAME
-    __check_APP_PACKAGE_NAME    
+    if [ "$NEED_CONVERT_TO_WEBP" = true ] ; then
+        __webp    "$OUTPUT_APK_FILE"
+        __sign_v1 "$OUTPUT_APK_FILE"
+    fi
+
+    if [ "$NEED_REDEX" = true ] ; then
+        __redex   "$OUTPUT_APK_FILE"
+        __sign_v1 "$OUTPUT_APK_FILE"
+    fi
+
+    if [ "$NEED_RESGUARD" = true ] ; then
+        __resguard "$OUTPUT_APK_FILE"
+    fi
+
+    if [ "$NEED_JIAGU" = true ] ; then
+        __jiagu          "$OUTPUT_APK_FILE"
+        __zipalign       "$OUTPUT_APK_FILE"
+        __sign_v2        "$OUTPUT_APK_FILE"
+        __sign_v2_verify "$OUTPUT_APK_FILE"
+    fi
+
+    if [ ! -d "$OUTPUT_DIR" ] ; then
+        run install -d "'$OUTPUT_DIR'"
+    fi
+
+    run cd "'$OUTPUT_DIR'"
     
-    [ "$isResGuard"    = "true" ] && __check_RESGUARD_CONFIG_FILE
-    [ "$isGenChannels" = "true" ] && __check_CHANNELS_CONFIG_FILE
-    [ "$isJiaGu"       = "true" ] && __check_QIHU360_account
-   
-    [ -n "$PROJECT_DIR" ] && __build_android_project
-     
-    __copy_to_working_dir
+    unset INPUT_APK_FILE
+    INPUT_APK_FILE="$OUTPUT_APK_FILE"
+
+    die_if_invalid_apk_file "$INPUT_APK_FILE"
+
+    unset OUTPUT_APK_FILENAME
+    OUTPUT_APK_FILENAME="${PACKAGE_NAME}_${VERSION_NAME}_${TIMESTAMP_FORM}_${BUILD_TYPE}.apk"
+
+    run cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILENAME"
+
+    run du -sh "$OUTPUT_APK_FILENAME"
     
-    [ "$isWebp"     = "true" ] && __webp  && __sign_v1
-    [ "$isReDex"    = "true" ] && __redex && __sign_v1
-    [ "$isResGuard" = "true" ] && __resguard
-    [ "$isJiaGu"    = "true" ] && __jiagu && __zipalign && __sign_v2 && __sign_v2_verify
-    
-    __copy_to_output_dir
-    
-    [ "$isGenChannels" = "true" ] && __walle && [ "$isZipChannels" = "true" ] && __zip
-    [ "$needInstall"   = 'true' ] && __install
-    
+    if [ "$NEED_GEN_CHANNELS" = true ] ; then
+        unset CHANNELS_OUT_DIR
+        CHANNELS_OUT_DIR="${OUTPUT_APK_FILENAME%.apk}"
+        run walle batch -f "$CHANNELS_CONFIG_FILE" "$OUTPUT_APK_FILENAME" "$CHANNELS_OUT_DIR"
+        if [ "$NEED_ZIP_CHANNELS" = true ] ; then
+            unset OUTPUT_ZIP_FILE
+            OUTPUT_ZIP_FILE="${CHANNELS_OUT_DIR}.zip"
+            run zip "'$OUTPUT_ZIP_FILE' $CHANNELS_OUT_DIR/*"
+            run du -sh "$OUTPUT_ZIP_FILE"
+        fi
+    fi
+
+    if [ "$NEED_INSTALL_TO_DEVICE" = true ] ; then
+        step "Installing $OUTPUT_APK_FILE ..."
+        run adb kill-server
+        run adb install -r -t "$OUTPUT_APK_FILE"
+    fi
+
     echo
     success "All Done."
 }
 
-#显示KeyStore中的内容
-show_keystore() {
+__keystore_of_a_project() {
     __unset
-
-    case $1 in
-        --project-dir=*)
-            PROJECT_DIR=$(getvalue "$1")
-            [ -z "$PROJECT_DIR" ] || 
-            case "$PROJECT_DIR" in
-                /*) ;;
-                \~|\~/) PROJECT_DIR="$HOME" ;;
-                \~/*)   PROJECT_DIR="${HOME}$(printf "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
-                .|./)   PROJECT_DIR="$PWD" ;;
-                *)      PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
-            esac
-    esac
     
-    [ -z "$PROJECT_DIR" ] && {
+    [ -z "$1" ] && {
         PROJECT_DIR="$PWD"
-        warn "missing --project-dir=DIR argument. so we use the default value [PWD=$PWD]."
+        warn "project dir is not specified. so we use the default value [PWD=$PWD]."
     }
 
-    __check_JAVA_HOME
-    __check_PROJECT_DIR
-    __check_KEY_STORE
-    keytool -list -v -keystore "$KEY_STORE_FILE_PATH" -storepass "$KEY_STORE_PASSWORD" -alias "$KEY_STORE_KEY_ALIAS"
+    __inspect_jdk
+    __inspect_android_project
+    __inspect_key_store_of_a_android_project
+
+    run keytool -list -v -keystore "$KEY_STORE_FILE_PATH" -storepass "$KEY_STORE_FILE_PASSWORD" -alias "$KEY_STORE_KEY_ALIAS"
 }
 
-show_version_of_a_apk_file() {
+__version_of_a_apk_file() {
     __unset
 
-    case $1 in
-        --input-apk-file=*)
-            INPUT_APK_FILE=$(getvalue "$1")
-            [ -z "$INPUT_APK_FILE" ] || 
-            case "$INPUT_APK_FILE" in
-                /*) ;;
-                \~|\~/) INPUT_APK_FILE="$HOME" ;;
-                \~/*)   INPUT_APK_FILE="${HOME}$(printf "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
-                .|./)   INPUT_APK_FILE="$PWD" ;;
-                *)      INPUT_APK_FILE="$PWD/$INPUT_APK_FILE" ;;
-            esac
-    esac
+    die_if_invalid_apk_file "$1"
 
-    [ -z "$INPUT_APK_FILE" ] && die "missing --input-apk-file=FILE argument."
-    
-    info "INPUT_APK_FILE = $INPUT_APK_FILE"
+    __inspect_jdk
+    __inspect_android_sdk
 
-    is_a_valid_apk_file "$INPUT_APK_FILE"
-    __check_JAVA_HOME
-    __check_ANDROID_HOME
-    aapt dump badging "$INPUT_APK_FILE" | grep "version"
+    run "aapt dump badging '$1' | grep version"
 }
 
 # 显示帮助
 help() {
 	cat <<EOF
-androidx -h                             --show help info
-androidx --help                         --show help info
-androidx help                           --show help info
+androidx -h | --help                     --show help info
 
-androidx -V                             --show version
-androidx --version                      --show version
-androidx version                        --show version
+androidx -V | --version                  --show version
 
-androidx show keystore --project-dir=DIR           --show your keystore's content of the project.
+androidx integrate zsh                   --integrate zsh-completion script.
 
-androidx show version --input-apk-file=FILE        --print the apk's versionCode and versionName
+androidx upgrade-self                    --upgrade this software.
+
+androidx show keystore PROJECT-DIR       --show the keystore's content of the given project.
+
+androidx show version APK-FILE           --print the given apk's versionCode and versionName
 
 androidx build [ARGUMENT]...
     ARGUMENT: 
-        --input-apk-file=FILE    --set the input apk file path. if this argument is specified, --project-dir=DIR argument can not be specified.
-        --project-dir=DIR        --set the android project directory. if this argument is specified, --input-apk-file=FILE argument can not be specified.
-        
-        --webp            --convert images to webp, default false.
-        --resguard        --guard the res, default false.
-        --redex           --rebuild the dex to optimize, default false.
-        --jiagu           --jiagu with 360jiagubao, default false.
-        --channels-gen    --generate channels files.
-        --channels-zip    --zip channels files.
-        --install         --install the final apk on connected device.
-        
+        --project-dir=DIR                --set the android project directory. If this argument is not specified, $PWD is used.
+        --output-dir=DIR                 --set the output dir. If this argument is not specified, the project directory or current directory is used.
+        --build-type=VALUE               --debug or release. If this argument is not specified, debug is used.
+
+        --webp                           --convert images to webp. default false.
+        --resguard                       --guard the res. default false.
+        --redex                          --rebuild the dex to optimize. default false.
+        --jiagu                          --jiagu with 360jiagubao. default false.
+        --channels[=zip]                 --generate multi channel packages. if it's value is zip, final will pack the multi channel packages into a zip file.
+        --install                        --install the final apk on connected device.
+
         --channels-config-file=FILE      --set the channels config file path
         --resguard-config-file=FILE      --set the resguard config file path
-                                        
+
         --keystore-file=FILE             --set the keystore file path.
         --keystore-password=VALUE        --set the password of the keystore file.
         --keystore-key-alias=VALUE       --set the key alias.
         --keystore-key-password=VALUE    --set the password of the key alias.
-        
-        --output-dir=DIR        --set the output dir, if this argument is not specified, the project directory or current directory is used.
-        --app-name=VALUE        --set the app name, if this argument is not specified, the name of output directory is used.
-        --environment=VALUE     --debug or release, if this argument is not specified, debug is used.
-        --verbose | -v          --verbose output log.
-        --xtrace  | -x          --trace execution of commands
+
+        --verbose | -v                   --verbose output log.
+        --xtrace  | -x                   --trace execution of commands
+
+androidx repack [ARGUMENT]...
+    ARGUMENT: 
+        --input-file=FILE                --set the input apk file path.
+        --output-dir=DIR                 --set the output dir. If this argument is not specified, the project directory or current directory is used.
+        --build-type=VALUE               --debug or release. If this argument is not specified, debug is used.
+
+        --webp                           --convert images to webp. default false.
+        --resguard                       --guard the res. default false.
+        --redex                          --rebuild the dex to optimize. default false.
+        --jiagu                          --jiagu with 360jiagubao. default false.
+        --channels[=zip]                 --generate multi channel packages. if it's value is zip, final will pack the multi channel packages into a zip file.
+        --install                        --install the final apk on connected device.
+
+        --channels-config-file=FILE      --set the channels config file path
+        --resguard-config-file=FILE      --set the resguard config file path
+
+        --keystore-file=FILE             --set the keystore file path.
+        --keystore-password=VALUE        --set the password of the keystore file.
+        --keystore-key-alias=VALUE       --set the key alias.
+        --keystore-key-password=VALUE    --set the password of the key alias.
+
+        --verbose | -v                   --verbose output log.
+        --xtrace  | -x                   --trace execution of commands
 EOF
     if [ -z "$1" ] ; then
         exit
@@ -1012,25 +3197,34 @@ EOF
 
 main() {
     case $1 in
-        -h|--help|help)
+        -h|--help)
             help
             ;;
-        -V|--version|version)
-            echo "$VERSION"
+        -V|--version)
+            echo '0.1.0'
             ;;
-        build)
-            shift
-            __build "$@"
+        upgrade-self)
+            __upgrade_self 'https://raw.githubusercontent.com/leleliu008/androidx/master/bin/androidx'
             ;;
+        integrate)
+            shift;
+            case $1 in
+                zsh) __integrate_zsh_completions "https://raw.githubusercontent.com/leleliu008/androidx/master/zsh-completion/_androidx" ;;
+                *)   die "unsupported integrate feature : $1"
+            esac
+            ;;
+        build)  __build  $@ ;;
+        repack) __repack $@ ;;
         show)
-            case $2 in
+            shift
+            case $1 in
                 keystore)
-                    shift 2
-                    show_keystore "$@"
+                    shift
+                    __keystore_of_a_project $@
                     ;;
                 version)
-                    shift 2
-                    show_version_of_a_apk_file "$@"
+                    shift
+                    __version_of_a_apk_file $@
                     ;;
                 *)  help 1
             esac
@@ -1039,4 +3233,4 @@ main() {
     esac
 }
 
-main "$@"
+main $@
