@@ -1,7 +1,7 @@
 # Maintainer: fpliu <leleliu008@gmail.com>
 
 pkgname=('androidx')
-pkgver=0.1.0
+pkgver='0.1.0'
 pkgrel=1
 pkgdesc="Android project helper"
 arch=('any')
@@ -9,7 +9,7 @@ license=('custom')
 url="https://github.com/leleliu008/androidx"
 makedepends=()
 source=(https://github.com/leleliu008/androidx/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz)
-sha256sums=('16bfb70ac96b96421bca9d47df6b473532caf2ac8ce8753022f66bbccc31b8d1')
+sha256sums=('321b506b4492ae474b6a9af9fd717b5a39daf28d48f4c5392c543ac406aea2b8')
 
 build() {
     true
