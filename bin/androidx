@@ -2384,10 +2384,11 @@ __jiagu() {
 # __sign_v1_remove xx.apk
 __sign_v1_remove() {
     die_if_invalid_apk_file "$1"
-    
-    run aapt r "$1" META-INF/CERT.SF     || true
-    run aapt r "$1" META-INF/CERT.RSA    || true
-    run aapt r "$1" META-INF/MANIFEST.MF || true
+
+    for item in $(aapt list "$1" | grep 'META-INF')
+    do
+        run aapt remove "$1" "$item"
+    done
 }
 
 # __sign_v1 xx.apk
@@ -2448,28 +2449,42 @@ __inspect_android_sdk() {
     # https://developer.android.google.cn/studio/command-line/variables
     [ -z "$ANDROID_HOME" ] && die "ANDROID_HOME environment variable is not set."
     [ -d "$ANDROID_HOME" ] || die "ANDROID_HOME=$ANDROID_HOME directory is not exist."
-    
-    ANDROID_PLATFORMS_DIR="$ANDROID_HOME/platforms"
-    [ -d "$ANDROID_PLATFORMS_DIR" ] || die "$ANDROID_PLATFORMS_DIR directory is not exist."
-    
-    ANDROID_PLATFORM_TOOLS_DIR="$ANDROID_HOME/platform-tools"
-    [ -d "$ANDROID_PLATFORM_TOOLS_DIR" ] || die "$ANDROID_PLATFORM_TOOLS_DIR directory is not exist."
-    export PATH="$ANDROID_PLATFORM_TOOLS_DIR:$PATH"
-    
-    ANDROID_BUILD_TOOLS_DIR="$ANDROID_HOME/build-tools"
-    [ -d "$ANDROID_BUILD_TOOLS_DIR" ] || die "$ANDROID_BUILD_TOOLS_DIR directory is not exist."
-
-    ANDROID_BUILD_TOOLS_VERSION=$(find "$ANDROID_BUILD_TOOLS_DIR" -type d -maxdepth 1 -mindepth 1 -exec basename {} \; | sort --version-sort --reverse | head -n 1)
-    if [ -z "$ANDROID_BUILD_TOOLS_VERSION" ] ; then
-        warn "Android SDK build-tools not installed."
-    else
-        export PATH="$ANDROID_BUILD_TOOLS_DIR/$ANDROID_BUILD_TOOLS_VERSION:$PATH"
-    fi
 
     if [ "$VERBOSE" = true ] ; then
         if command -v tree > /dev/null ; then
             run tree "$ANDROID_HOME" -L 3
         fi
+    fi
+
+    ANDROID_PLATFORMS_DIR="$ANDROID_HOME/platforms"
+    if [ ! -d "$ANDROID_PLATFORMS_DIR" ] ; then
+        die "$ANDROID_PLATFORMS_DIR directory is not exist."
+    fi
+
+    ANDROID_TOOLS_DIR="$ANDROID_HOME/tools"
+    if [ -d "$ANDROID_TOOLS_DIR" ] ; then
+        export PATH="$ANDROID_TOOLS_DIR:$ANDROID_TOOLS_DIR/bin:$PATH"
+    else
+        die "$ANDROID_TOOLS_DIR directory is not exist."
+    fi
+    
+    ANDROID_PLATFORM_TOOLS_DIR="$ANDROID_HOME/platform-tools"
+    if [ -d "$ANDROID_PLATFORM_TOOLS_DIR" ] ; then
+        export PATH="$ANDROID_PLATFORM_TOOLS_DIR:$PATH"
+    else
+        die "$ANDROID_PLATFORM_TOOLS_DIR directory is not exist."
+    fi
+
+    ANDROID_BUILD_TOOLS_DIR="$ANDROID_HOME/build-tools"
+    if [ -d "$ANDROID_BUILD_TOOLS_DIR" ] ; then
+        ANDROID_BUILD_TOOLS_VERSION=$(find "$ANDROID_BUILD_TOOLS_DIR" -type d -maxdepth 1 -mindepth 1 -exec basename {} \; | sort --version-sort --reverse | head -n 1)
+        if [ -z "$ANDROID_BUILD_TOOLS_VERSION" ] ; then
+            warn "Android SDK build-tools not installed."
+        else
+            export PATH="$ANDROID_BUILD_TOOLS_DIR/$ANDROID_BUILD_TOOLS_VERSION:$PATH"
+        fi
+    else
+        die "$ANDROID_BUILD_TOOLS_DIR directory is not exist."
     fi
 }
 
@@ -3083,8 +3098,8 @@ __repack() {
     esac
 
     step "inspect input apk file"
-    PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep "package: name=" |  awk 'BEGIN{RS=" "} /^name/{print}' | sed "s/name=\'\(.*\)\'/\1/")
-    VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'versionName' | awk 'BEGIN{RS=" "} /versionName/{print}' | sed "s/versionName=\'\(.*\)\'/\1/")
+    PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'package: name=' | cut -d \' -f2)
+    VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | grep 'versionName'    | cut -d \' -f6)
     echo "PACKAGE_NAME = $PACKAGE_NAME"
     echo "VERSION_NAME = $VERSION_NAME"
 
