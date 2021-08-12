@@ -1539,9 +1539,9 @@ get_brew_package_name_by_command_name() {
                 echo 'python@3.9' ;;
     cwebp|dwebp|img2webp|webpinfo|webpmux)
                 echo 'webp' ;;
-    walle)      echo 'walle-cli'
-    andresguard) echo 'andresguard-cli'
-    360jiagubao) echo 'qihu360jiagubao'
+    walle)      echo 'walle-cli' ;;
+    andresguard) echo 'andresguard-cli' ;;
+    360jiagubao) echo 'qihu360jiagubao' ;;
         *)      echo "$1"
     esac
 }
