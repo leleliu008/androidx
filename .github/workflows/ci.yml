@@ -24,8 +24,10 @@ jobs:
       with:
         repository: 'leleliu008/Android-VideoPlayer'
         path: 'Android-VideoPlayer'
-    - run:  bin/androidx --version
-    - run:  bin/androidx build -v --project-dir=./Android-VideoPlayer --build-type=release --webp --resguard --channels=zip
+    - run: bin/androidx --version
+    - run: |
+        export JAVA_HOME=$JAVA_HOME_11_X64
+        bin/androidx build -v --project-dir=./Android-VideoPlayer --build-type=release --webp --resguard --channels=zip
 
   install_via_homebrew:
     strategy:
@@ -45,5 +47,7 @@ jobs:
       with:
         repository: 'leleliu008/Android-VideoPlayer'
         path: 'Android-VideoPlayer'
-    - run:  androidx --version
-    - run:  androidx build -v --project-dir=./Android-VideoPlayer --build-type=release --webp --resguard --channels=zip
+    - run: androidx --version
+    - run: |
+        export JAVA_HOME=$JAVA_HOME_11_X64
+        androidx build -v --project-dir=./Android-VideoPlayer --build-type=release --webp --resguard --channels=zip
