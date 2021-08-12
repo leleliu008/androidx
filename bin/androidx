@@ -2458,15 +2458,13 @@ __inspect_android_sdk() {
     
     ANDROID_BUILD_TOOLS_DIR="$ANDROID_HOME/build-tools"
     [ -d "$ANDROID_BUILD_TOOLS_DIR" ] || die "$ANDROID_BUILD_TOOLS_DIR directory is not exist."
-     
-    for item in $(cd "$ANDROID_BUILD_TOOLS_DIR"; ls | sort --version-sort --reverse)
-    do
-        [ -d "$ANDROID_BUILD_TOOLS_DIR/$item" ] && {
-            export PATH="$ANDROID_BUILD_TOOLS_DIR:$PATH"
-            ANDROID_BUILD_TOOLS_VERSION="$item"
-            break
-        }
-    done
+
+    ANDROID_BUILD_TOOLS_VERSION=$(find "$ANDROID_BUILD_TOOLS_DIR" -type d -maxdepth 1 -mindepth 1 -exec basename {} \; | sort --version-sort --reverse | head -n 1)
+    if [ -z "$ANDROID_BUILD_TOOLS_VERSION" ] ; then
+        warn "Android SDK build-tools not installed."
+    else
+        export PATH="$ANDROID_BUILD_TOOLS_DIR/$ANDROID_BUILD_TOOLS_VERSION:$PATH"
+    fi
 
     if [ "$VERBOSE" = true ] ; then
         if command -v tree > /dev/null ; then
