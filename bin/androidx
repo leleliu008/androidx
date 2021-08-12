@@ -964,6 +964,8 @@ version_of_command() {
           zsh) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f2 ;;
          bash) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 | cut -d '(' -f1 ;;
        base64) "$1" --version 2> /dev/null | head -n 1 | cut -d ' ' -f4 ;;
+        cwebp) "$1"  -version 2> /dev/null ;;
+          7za) "$1" --help | grep Version | cut -d ' ' -f3 ;;
             *) "$1" --version 2> /dev/null | head -n 1
     esac
 }
@@ -1487,7 +1489,7 @@ get_apt_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
-         7za) echo 'p7zip' ;;
+         7za) echo 'p7zip-full' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -3011,6 +3013,12 @@ __prepare() {
 
     step "printf required tools"
     __printf_required_dependencies
+
+    step "show PATH"
+    for item in $(echo "$PATH" | tr ' ' '|' | tr ':' ' ')
+    do
+        echo "$item" | tr '|' ' '
+    done
 }
 
 # __build build [ARGUMENT]...
