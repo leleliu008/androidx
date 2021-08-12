@@ -2000,8 +2000,6 @@ handle_dependency() {
 }
 
 __handle_required_dependencies() {
-    step "handle required dependencies"
-
     for dependency in $REQUIRED_DEPENDENCY_LIST
     do
         handle_dependency $(__decode_dependency "$dependency") || return 1
@@ -2061,7 +2059,6 @@ printf_dependency() {
 }
 
 __printf_required_dependencies() {
-    step "printf required dependencies"
     if [ -z "$REQUIRED_DEPENDENCY_LIST" ] ; then
         warn "no required dependencies."
     else
@@ -2074,7 +2071,6 @@ __printf_required_dependencies() {
 }
 
 __printf_optional_dependencies() {
-    step "printf optional dependencies"
     if [ -z "$OPTIONAL_DEPENDENCY_LIST" ] ; then
         warn "no optional dependencies."
     else
@@ -2997,10 +2993,7 @@ __prepare() {
     regist_dependency required command unzip
 
     step "handle essential tools"
-    for dependency in $REQUIRED_DEPENDENCY_LIST
-    do
-        handle_dependency $(__decode_dependency "$dependency")
-    done
+    __handle_required_dependencies
 
     step "inspect JDK"
     __inspect_jdk
@@ -3012,6 +3005,12 @@ __prepare() {
 
     step "parse arguments"
     __parse_arguments $@
+
+    step "handle required tools"
+    __handle_required_dependencies
+
+    step "printf required tools"
+    __printf_required_dependencies
 }
 
 # __build build [ARGUMENT]...
