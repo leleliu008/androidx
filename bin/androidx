@@ -2408,14 +2408,18 @@ __sign_v1() {
     fi
 }
 
-# __sign_v2 xx.apk
-__sign_v2() {
+# __sign_v2_if_needed xx.apk
+__sign_v2_if_needed() {
     die_if_invalid_apk_file "$1"
 
-    unset OUTPUT_APK_FILE
-    OUTPUT_APK_FILE="$(echo "${1%.apk}_v2signed.apk")"
+    if [ "$(apksigner verify -verbose "$1" | grep 'APK Signature Scheme v2' | cut -d : -f2)" = ' true' ] ; then
+        warn "$1: APK Signature Scheme v2 : true"
+    else
+        unset OUTPUT_APK_FILE
+        OUTPUT_APK_FILE="$(echo "${1%.apk}_v2signed.apk")"
 
-    run apksigner sign --ks "$KEY_STORE_FILE_PATH" --ks-pass pass:"$KEY_STORE_FILE_PASSWORD" --ks-key-alias "$KEY_STORE_KEY_ALIAS" --key-pass pass:"$KEY_STORE_FILE_PASSWORD" --out "$OUTPUT_APK_FILE" "$1"
+        run apksigner sign --ks "$KEY_STORE_FILE_PATH" --ks-pass pass:"$KEY_STORE_FILE_PASSWORD" --ks-key-alias "$KEY_STORE_KEY_ALIAS" --key-pass pass:"$KEY_STORE_FILE_PASSWORD" --out "$OUTPUT_APK_FILE" "$1"
+    fi
 }
 
 # __sign_v2_verify xx.apk
@@ -3135,9 +3139,9 @@ __repack() {
     if [ "$NEED_JIAGU" = true ] ; then
         __jiagu          "$OUTPUT_APK_FILE"
         __zipalign       "$OUTPUT_APK_FILE"
-        __sign_v2        "$OUTPUT_APK_FILE"
-        __sign_v2_verify "$OUTPUT_APK_FILE"
     fi
+
+    __sign_v2_if_needed  "$OUTPUT_APK_FILE"
 
     if [ ! -d "$OUTPUT_DIR" ] ; then
         run install -d "'$OUTPUT_DIR'"
@@ -3156,6 +3160,8 @@ __repack() {
     run cp "$INPUT_APK_FILE" "$OUTPUT_APK_FILENAME"
 
     run du -sh "$OUTPUT_APK_FILENAME"
+
+    __sign_v2_verify "$OUTPUT_APK_FILENAME"
     
     if [ "$NEED_GEN_CHANNELS" = true ] ; then
         unset CHANNELS_OUT_DIR
