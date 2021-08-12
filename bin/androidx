@@ -1145,7 +1145,8 @@ get_choco_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc-g++' ;;
        gmake) echo 'make' ;;
-         gm4) echo 'm4'    ;;
+         gm4) echo 'm4'   ;;
+         7za) echo 'p7zip';;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
         diff) echo 'diffutils';;
@@ -1158,6 +1159,8 @@ get_choco_package_name_by_command_name() {
     autoreconf) echo "autoconf" ;;
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1166,6 +1169,7 @@ get_pkg_add_package_name_by_command_name() {
     case $1 in
           cc) echo 'gcc'   ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
         make) echo 'gmake' ;;
         perl) echo 'perl5' ;;
        gperf) echo 'gperf' ;;
@@ -1188,8 +1192,10 @@ get_pkg_add_package_name_by_command_name() {
                 echo "automake-1.16.2"
             fi
             ;;
-    autopoint) echo "gettext" ;;
+    autopoint)  echo "gettext" ;;
     pkg-config) echo "pkgconf" ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *) echo "$1"
     esac
 }
@@ -1198,6 +1204,7 @@ get_pkgin_package_name_by_command_name() {
     case $1 in
           cc) echo 'gcc'   ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
         make) echo 'gmake' ;;
         perl) echo 'perl5' ;;
         gsed) echo 'gnu-sed'  ;;
@@ -1215,6 +1222,8 @@ get_pkgin_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     pkg-config) echo "pkgconf"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1223,6 +1232,7 @@ get_pkg_package_name_by_command_name() {
     case $1 in
           cc) echo 'gcc'   ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
         make) echo 'gmake' ;;
         perl) echo 'perl5' ;;
         gsed) echo 'gnu-sed'  ;;
@@ -1238,6 +1248,8 @@ get_pkg_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     pkg-config) echo "pkgconf"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1246,6 +1258,7 @@ get_emerge_package_name_by_command_name() {
     case $1 in
           cc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
         diff) echo 'diffutils';;
@@ -1264,6 +1277,8 @@ get_emerge_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     pkg-config) echo "pkgconf"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1272,6 +1287,7 @@ __get_pacman_package_name_by_command_name() {
     case $1 in
           cc) echo 'gcc'      ;;
          gm4) echo 'm4'       ;;
+         7za) echo 'p7zip'    ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
         diff) echo 'diffutils';;
@@ -1289,6 +1305,8 @@ __get_pacman_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     pkg-config) echo "pkgconf"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1324,6 +1342,7 @@ get_xbps_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1341,6 +1360,8 @@ get_xbps_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     pkg-config) echo "pkgconf"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1349,6 +1370,7 @@ get_apk_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc libc-dev' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1368,6 +1390,8 @@ get_apk_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     pkg-config) echo "pkgconf"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *) echo "$1"
     esac
 }
@@ -1376,6 +1400,7 @@ get_zypper_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1395,6 +1420,8 @@ get_zypper_package_name_by_command_name() {
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
     autopoint)  echo "gettext"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1403,6 +1430,7 @@ get_dnf_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1420,6 +1448,8 @@ get_dnf_package_name_by_command_name() {
     autoreconf) echo "autoconf" ;;
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1428,6 +1458,7 @@ get_yum_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1442,6 +1473,8 @@ get_yum_package_name_by_command_name() {
     autoreconf) echo "autoconf" ;;
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1454,6 +1487,7 @@ get_apt_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1473,6 +1507,8 @@ get_apt_package_name_by_command_name() {
     autoreconf) echo "autoconf" ;;
     autoheader) echo "automake" ;;
     autopoint)  echo "gettext"  ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
         *)      echo "$1"
     esac
 }
@@ -1481,6 +1517,7 @@ get_brew_package_name_by_command_name() {
     case $1 in
       cc|gcc) echo 'gcc' ;;
          gm4) echo 'm4'    ;;
+         7za) echo 'p7zip' ;;
        gperf) echo 'gperf' ;;
         gsed) echo 'gnu-sed'  ;;
         find) echo 'findutils';;
@@ -1500,6 +1537,11 @@ get_brew_package_name_by_command_name() {
     autopoint)  echo "gettext"  ;;
     python|python3)
                 echo 'python@3.9' ;;
+    cwebp|dwebp|img2webp|webpinfo|webpmux)
+                echo 'webp' ;;
+    walle)      echo 'walle-cli'
+    andresguard) echo 'andresguard-cli'
+    360jiagubao) echo 'qihu360jiagubao'
         *)      echo "$1"
     esac
 }
@@ -1586,6 +1628,12 @@ __install_package_via_package_manager() {
             esac
             ;;
         brew)
+            case $2 in
+                walle-cli|andresguard-cli|qihu360jiagubao)
+                    if [ "$(brew tap-info leleliu008/fpliu | head -n 1)" = 'leleliu008/fpliu: Not installed' ] ; then
+                        run brew tap leleliu008/fpliu || return 1
+                    fi
+            esac
             if run brew install "$2" ; then
                 if [ "$(brew info --json=v2 "$2" | grep keg_only | sed 's/ //g' | cut -d: -f2 | sed 's/,//')" = 'true' ] ; then
                     if [ -d "$(brew --prefix "$2")/bin" ] ; then
