@@ -2183,6 +2183,8 @@ __pmw_get_available_package_name_by_command_name_apt() {
                 echo 'libgdk-pixbuf2.0-bin' ;;
     gpasm|gpdasm|gplib|gplink|gpstrip|gpvc|gpvo)
                 echo 'gputils' ;;
+    cwebp|dwebp|gif2webp|img2webp|vwebp|webpinfo|webpmux)
+                echo 'webp' ;;
         ninja)
             if [ "$NATIVE_OS_SUBS" = termux ] ; then
                 echo ninja
@@ -2236,6 +2238,8 @@ __pmw_get_available_package_name_by_command_name_brew() {
                 echo 'gdk-pixbuf' ;;
     gpasm|gpdasm|gplib|gplink|gpstrip|gpvc|gpvo)
                 echo 'gputils' ;;
+    cwebp|dwebp|gif2webp|img2webp|vwebp|webpinfo|webpmux)
+                echo 'libwebp' ;;
         *)      echo "$1"
     esac
 }
