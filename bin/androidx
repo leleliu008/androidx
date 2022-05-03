@@ -2511,6 +2511,14 @@ linux |x86_64|  -  |android-sdk|7583922|124f2d5115eee365df6cf3228ffbca6fc3911d16
 darwin|  -   |  -  |android-sdk|7583922|6929a1957f3e71008adfade0cebd08ebea9b9f506aa77f1849c7bdc3418df7cf|https://dl.google.com/android/repository/commandlinetools-mac-7583922_latest.zip
 
 linux |x86_64|glibc|file|5.41|cd99dbd24fc55e79d5bab627e591219891acce97f787cafc8eb2d5c41b1d4db7|https://github.com/leleliu008/test/releases/download/20220409-2015/file-5.41-x86_64-linux-glibc.tar.xz
+
+linux |x86_64|glibc|360jiagubao|unkown|dae0d51569ea9793e1bb8108c59a5460ef0939132ef94e51ca7d43db6c4d4ad7|https://down.360safe.com/360Jiagu/360jiagubao_linux_64.zip
+darwin|x86_64|     |360jiagubao|unkown|43148970fb2175a358920ac657c0782904a37cee39367c29c685822c3dc73cd0|https://down.360safe.com/360Jiagu/360jiagubao_mac.zip
+windows|x86_64|    |360jiagubao|unkown|470798985989416bc02a7be6dbb51dd5c41346c9d05a9d08a89443510aa7d4f8|https://down.360safe.com/360Jiagu/360jiagubao_windows_32.zip
+
+      |      |     |andresguard|1.2.16|0384bf6804be6527a6f44f2d2086eca782cfe960d8f1227e6571f6a8562e0cc3|https://github.com/leleliu008/AndResGuard-cli-wrapper/releases/download/v1.2.16/AndResGuard-cli-1.2.16.tar.gz
+
+      |      |     |walle|1.1.6|511d8977e294ef5795e079e8fa0137a11592e6d2f2148523267cd4fcd6233184|https://github.com/leleliu008/walle-cli-wrapper/releases/download/v1.1.6/walle-cli-1.1.6.tar.gz
 EOF
 }
 
@@ -2943,7 +2951,17 @@ JAVA_HOME="$UPPM_PKG_INSTALLD"
 bppend_to_PATH "$UPPM_PKG_INSTALLD/bin"
 EOF
             . "$UPPM_PKG_INSTALLD/env"
+            ;;
+        360jiagubao)
+            install -d "$UPPM_PKG_INSTALLD/bin"
+            cat > "$UPPM_PKG_INSTALLD/bin/360jiagubao" <<EOF
+#!/bin/sh
 
+P=\$(cd \$(dirname \$0);pwd)
+exec java -jar "\${P}/../lib/jiagu/jiagu.jar" \$@
+EOF
+            chmod +x "$UPPM_PKG_INSTALLD/bin/360jiagubao"
+            bppend_to_PATH "$UPPM_PKG_INSTALLD/bin"
     esac
 }
 
@@ -4014,7 +4032,7 @@ __parse_arguments() {
                         '') die "--project-dir=DIR, DIR must be not empty." ;;
                         /*) ;;
                         \~|\~/) PROJECT_DIR="$HOME" ;;
-                        \~/*)   PROJECT_DIR="${HOME}$(printf "$PROJECT_DIR" | awk '{print(substr($0, 2))}')" ;;
+                        \~/*)   PROJECT_DIR="${HOME}$(printf '%s\n' "$PROJECT_DIR" | cut -c2-)" ;;
                         .|./)   PROJECT_DIR="$PWD" ;;
                         *)      PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
                     esac
@@ -4032,7 +4050,7 @@ __parse_arguments() {
                         '') die "--input-file=FILE, FILE must be not empty." ;;
                         /*) ;;
                         \~|\~/) INPUT_APK_FILE="$HOME" ;;
-                        \~/*)   INPUT_APK_FILE="${HOME}$(printf "$INPUT_APK_FILE" | awk '{print(substr($0, 2))}')" ;;
+                        \~/*)   INPUT_APK_FILE="${HOME}$(printf '%s\n' "$INPUT_APK_FILE" | cut -c2-)" ;;
                         .|./)   INPUT_APK_FILE="$PWD" ;;
                         *)      INPUT_APK_FILE="$PWD/$INPUT_APK_FILE" ;;
                     esac
@@ -4042,11 +4060,11 @@ __parse_arguments() {
                 ;;
             --output-dir=*)
                 OUTPUT_DIR=$(getvalue "$1")
-                [ -z "$OUTPUT_DIR" ] && die "--output-dir=DIR, DIR must be not empty."
                 case "$OUTPUT_DIR" in
-                    /*);;
+                    '') die "--output-dir=DIR, DIR must be not empty." ;;
+                    /*) ;;
                     \~|\~/) OUTPUT_DIR="$HOME" ;;
-                    \~/*)   OUTPUT_DIR="${HOME}$(printf "$OUTPUT_DIR" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   OUTPUT_DIR="${HOME}$(printf '%s\n' "$OUTPUT_DIR" | cut -c2-)" ;;
                     .|./)   OUTPUT_DIR="$PWD" ;;
                     *)      OUTPUT_DIR="$PWD/$OUTPUT_DIR" ;;
                 esac
@@ -4112,7 +4130,7 @@ __parse_arguments() {
                 case "$CHANNELS_CONFIG_FILE" in
                     /*) ;;
                     \~|\~/) CHANNELS_CONFIG_FILE="$HOME" ;;
-                    \~/*)   CHANNELS_CONFIG_FILE="${HOME}$(printf "$CHANNELS_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   CHANNELS_CONFIG_FILE="${HOME}$(printf '%s\n' "$CHANNELS_CONFIG_FILE" | cut -c2-)" ;;
                     .|./)   CHANNELS_CONFIG_FILE="$PWD" ;;
                     *)      CHANNELS_CONFIG_FILE="$PWD/$CHANNELS_CONFIG_FILE" ;;
                 esac
@@ -4128,7 +4146,7 @@ __parse_arguments() {
                 case "$RESGUARD_CONFIG_FILE" in
                     /*) ;;
                     \~|\~/) RESGUARD_CONFIG_FILE="$HOME" ;;
-                    \~/*)   RESGUARD_CONFIG_FILE="${HOME}$(printf "$RESGUARD_CONFIG_FILE" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   RESGUARD_CONFIG_FILE="${HOME}$(printf '%s\n' "$RESGUARD_CONFIG_FILE" | cut -c2-)" ;;
                     .|./)   RESGUARD_CONFIG_FILE="$PWD" ;;
                     *)      RESGUARD_CONFIG_FILE="$PWD/$RESGUARD_CONFIG_FILE" ;;
                 esac
@@ -4144,7 +4162,7 @@ __parse_arguments() {
                 case "$KEY_STORE_FILE_PATH" in
                     /*) ;;
                     \~|\~/) KEY_STORE_FILE_PATH="$HOME" ;;
-                    \~/*)   KEY_STORE_FILE_PATH="${HOME}$(printf "$KEY_STORE_FILE_PATH" | awk '{print(substr($0, 2))}')" ;;
+                    \~/*)   KEY_STORE_FILE_PATH="${HOME}$(printf '%s\n' "$KEY_STORE_FILE_PATH" | cut -c2-)" ;;
                     .|./)   KEY_STORE_FILE_PATH="$PWD" ;;
                     *)      KEY_STORE_FILE_PATH="$PWD/$KEY_STORE_FILE_PATH" ;;
                 esac
@@ -4254,17 +4272,16 @@ __parse_arguments() {
         *)  die "unrecognized action : $ACTION"
     esac
 
-    echo "--output-dir = $OUTPUT_DIR"
-    echo
-    echo "--build-type = $BUILD_TYPE"
-    echo
-    echo "--webp       = $NEED_CONVERT_TO_WEBP"
-    echo "--resguard   = $NEED_RESGUARD"
-    echo "--redex      = $NEED_REDEX"
-    echo "--jiagu      = $NEED_JIAGU"
-    echo "--channels   = $NEED_GEN_CHANNELS"
-    echo "--install    = $NEED_INSTALL_TO_DEVICE"
-    echo
+    cat <<EOF
+--output-dir = $OUTPUT_DIR
+--build-type = $BUILD_TYPE
+--webp       = $NEED_CONVERT_TO_WEBP
+--resguard   = $NEED_RESGUARD
+--redex      = $NEED_REDEX
+--jiagu      = $NEED_JIAGU
+--channels   = $NEED_GEN_CHANNELS
+--install    = $NEED_INSTALL_TO_DEVICE
+EOF
 
     if [ "$NEED_SIGN" = true ] ; then
         echo "--keystore-file          = $KEY_STORE_FILE_PATH"
@@ -4308,12 +4325,14 @@ __prepare() {
     NATIVE_OS_VERS=$(os vers)
     NATIVE_OS_ARCH=$(os arch)
     NATIVE_OS_LIBC=$(os libc)
-    echo "NATIVE_OS_KIND  = $NATIVE_OS_KIND"
-    echo "NATIVE_OS_TYPE  = $NATIVE_OS_TYPE"
-    echo "NATIVE_OS_NAME  = $NATIVE_OS_NAME"
-    echo "NATIVE_OS_VERS  = $NATIVE_OS_VERS"
-    echo "NATIVE_OS_ARCH  = $NATIVE_OS_ARCH"
-    echo "NATIVE_OS_LIBC  = $NATIVE_OS_LIBC"
+    cat <<EOF
+NATIVE_OS_KIND  = $NATIVE_OS_KIND
+NATIVE_OS_TYPE  = $NATIVE_OS_TYPE
+NATIVE_OS_NAME  = $NATIVE_OS_NAME
+NATIVE_OS_VERS  = $NATIVE_OS_VERS
+NATIVE_OS_ARCH  = $NATIVE_OS_ARCH
+NATIVE_OS_LIBC  = $NATIVE_OS_LIBC
+EOF
     
     if [ "$NATIVE_OS_KIND" != 'windows' ] ; then
         [ "$(whoami)" = root ] || sudo=sudo
@@ -4354,9 +4373,9 @@ __prepare() {
     __printf_required_dependencies
 
     step "show PATH"
-    for item in $(echo "$PATH" | tr ' ' '|' | tr ':' ' ')
+    for item in $(printf '%s\n' "$PATH" | tr ' ' '|' | tr ':' ' ')
     do
-        echo "$item" | tr '|' ' '
+        printf '%s\n' "$item" | tr '|' ' '
     done
 }
 
@@ -4382,8 +4401,10 @@ __build() {
         die "can't read versionName from $GRADLE_APP_MODULE_BUILD_FILE."
     fi
 
-    echo "PACKAGE_NAME = $PACKAGE_NAME"
-    echo "VERSION_NAME = $VERSION_NAME"
+    cat <<EOF
+PACKAGE_NAME = $PACKAGE_NAME
+VERSION_NAME = $VERSION_NAME
+EOF
 
     step "update config file"
     if [ -f local.properties ] ; then
@@ -4391,14 +4412,14 @@ __build() {
     fi
 
     # 修改版本号（版本号使用十位的Unix时间戳，它精确到秒，而且它不会超过Java中的int类型的最大范围（2147483647），示例：1516856238）
-    sed_in_place "s|versionCode.*=.*|versionCode = $TIMESTAMP_UNIX|g" "$GRADLE_APP_MODULE_BUILD_FILE"
+    sed_in_place "s|versionCode[[:space:]]*=.*|versionCode = $TIMESTAMP_UNIX|g" "$GRADLE_APP_MODULE_BUILD_FILE"
 
     if [ "$BUILD_TYPE" = 'release' ] ; then
         ANDROID_DEBUGGABLE=false
     else
         ANDROID_DEBUGGABLE=true
     fi
-    sed_in_place "s|android:debuggable=\"$.*\"|android:debuggable=\"${ANDROID_DEBUGGABLE}\"|g" "$GRADLE_APP_MODULE_NAME/src/main/AndroidManifest.xml"
+    sed_in_place "s|android:debuggable=\".*\"|android:debuggable=\"${ANDROID_DEBUGGABLE}\"|g" "$GRADLE_APP_MODULE_NAME/src/main/AndroidManifest.xml"
 
     step "clean cache"
     for item in $(find . -name build -type d)
@@ -4408,7 +4429,7 @@ __build() {
     run ./gradlew clean
 
     step "building"
-    run ./gradlew assemble$(printf "$BUILD_TYPE" | awk '{print(toupper(substr($0, 1, 1))""substr($0, 2))}')
+    run ./gradlew assemble$(printf '%s\n' "$BUILD_TYPE" | awk '{print(toupper(substr($0, 1, 1))""substr($0, 2))}')
 
     INPUT_APK_FILE="$PROJECT_DIR/$GRADLE_APP_MODULE_NAME/build/outputs/apk/${BUILD_TYPE}/${GRADLE_APP_MODULE_NAME}-${BUILD_TYPE}.apk"
 
@@ -4426,8 +4447,10 @@ __repack() {
     step "inspect input apk file"
     PACKAGE_NAME=$(aapt d badging "$INPUT_APK_FILE" | sed -n '/package: name=/p' | cut -d \' -f2)
     VERSION_NAME=$(aapt d badging "$INPUT_APK_FILE" | sed -n '/versionName/p'    | cut -d \' -f6)
-    echo "PACKAGE_NAME = $PACKAGE_NAME"
-    echo "VERSION_NAME = $VERSION_NAME"
+    cat <<EOF
+PACKAGE_NAME = $PACKAGE_NAME
+VERSION_NAME = $VERSION_NAME
+EOF
 
     step "create working directory"
     WORKING_DIR=$(mktemp -d)
@@ -4597,12 +4620,14 @@ EOF
 }
 
 main() {
+    set -e
+
     case $1 in
         -h|--help)
             help
             ;;
         -V|--version)
-            echo '0.1.0'
+            printf '%s\n' '0.1.0'
             ;;
         upgrade-self)
             __upgrade_self 'https://raw.githubusercontent.com/leleliu008/androidx/master/bin/androidx'
