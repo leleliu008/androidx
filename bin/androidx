@@ -3044,6 +3044,9 @@ __uppm_get_package_name_by_command_name() {
         java)           printf '%s\n' 'jdk'     ;;
         cmake)          printf '%s\n' 'cmake'   ;;
         ninja)          printf '%s\n' 'ninja'   ;;
+        andresguard)    printf '%s\n' 'andresguard' ;;
+        360jiagubao)    printf '%s\n' '360jiagubao' ;;
+        walle)          printf '%s\n' 'walle'   ;;
         *)              printf '%s\n' "$1"
     esac
 }
