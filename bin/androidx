@@ -2512,13 +2512,13 @@ darwin|  -   |  -  |android-sdk|7583922|6929a1957f3e71008adfade0cebd08ebea9b9f50
 
 linux |x86_64|glibc|file|5.41|cd99dbd24fc55e79d5bab627e591219891acce97f787cafc8eb2d5c41b1d4db7|https://github.com/leleliu008/test/releases/download/20220409-2015/file-5.41-x86_64-linux-glibc.tar.xz
 
-linux |x86_64|glibc|360jiagubao|unkown|dae0d51569ea9793e1bb8108c59a5460ef0939132ef94e51ca7d43db6c4d4ad7|https://down.360safe.com/360Jiagu/360jiagubao_linux_64.zip
+linux |x86_64|glibc|360jiagubao|unkown|55799f1673ee50ad4b00bd4894bc202240ae3ff9057265bef5f45c19f5e18459|https://down.360safe.com/360Jiagu/360jiagubao_linux_64.zip
 darwin|x86_64|  -  |360jiagubao|unkown|43148970fb2175a358920ac657c0782904a37cee39367c29c685822c3dc73cd0|https://down.360safe.com/360Jiagu/360jiagubao_mac.zip
 windows|x86_64| -  |360jiagubao|unkown|470798985989416bc02a7be6dbb51dd5c41346c9d05a9d08a89443510aa7d4f8|https://down.360safe.com/360Jiagu/360jiagubao_windows_32.zip
 
-   -  |   -   | -  |andresguard|1.2.16|0384bf6804be6527a6f44f2d2086eca782cfe960d8f1227e6571f6a8562e0cc3|https://github.com/leleliu008/AndResGuard-cli-wrapper/releases/download/v1.2.16/AndResGuard-cli-1.2.16.tar.gz
+   -  |   -   | -  |andresguard-cli|1.2.16|c49b5f74b645acab7dbebc36c2d79cd0ea99008fc265848800e6205664a3c19e|https://github.com/leleliu008/AndResGuard-cli-wrapper/releases/download/v1.2.16/AndResGuard-cli-1.2.16.tar.gz
 
-   -  |   -   | -  |walle|1.1.6|511d8977e294ef5795e079e8fa0137a11592e6d2f2148523267cd4fcd6233184|https://github.com/leleliu008/walle-cli-wrapper/releases/download/v1.1.6/walle-cli-1.1.6.tar.gz
+   -  |   -   | -  |walle-cli|1.1.6|f1bd54c05edd1cfbbbde97ed2f78966409e911927bd377d61eaef8851634f285|https://github.com/leleliu008/walle-cli-wrapper/releases/download/v1.1.6/walle-cli-1.1.6.tar.gz
 EOF
 }
 
@@ -3044,9 +3044,9 @@ __uppm_get_package_name_by_command_name() {
         java)           printf '%s\n' 'jdk'     ;;
         cmake)          printf '%s\n' 'cmake'   ;;
         ninja)          printf '%s\n' 'ninja'   ;;
-        andresguard)    printf '%s\n' 'andresguard' ;;
+        andresguard)    printf '%s\n' 'andresguard-cli' ;;
         360jiagubao)    printf '%s\n' '360jiagubao' ;;
-        walle)          printf '%s\n' 'walle'   ;;
+        walle)          printf '%s\n' 'walle-cli';;
         *)              printf '%s\n' "$1"
     esac
 }
